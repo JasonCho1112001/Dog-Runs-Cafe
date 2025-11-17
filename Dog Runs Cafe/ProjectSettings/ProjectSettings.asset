@@ -4,7 +4,7 @@
 PlayerSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 28
-  productGUID: b766211dc436a9e4599aa89deaafd546
+  productGUID: d31c10e313ec5b547826757c22acf506
   AndroidProfiler: 0
   AndroidFilterTouchesWhenObscured: 0
   AndroidEnableSustainedPerformanceMode: 0
@@ -922,10 +922,10 @@ PlayerSettings:
   captureStartupLogs: {}
   activeInputHandler: 1
   windowsGamepadBackendHint: 0
-  cloudProjectId: 8fd3ed36-ac71-4994-b026-e8244360230c
+  cloudProjectId: c2391df1-7edf-41fe-9466-38d61efa7509
   framebufferDepthMemorylessMode: 0
   qualitySettingsNames: []
-  projectName: Dog Runs Cafe
+  projectName: Dog Runs Cafe 2025-11-16_16-58-20
   organizationId: mocwanterty
   cloudEnabled: 0
   legacyClampBlendShapeWeights: 0
