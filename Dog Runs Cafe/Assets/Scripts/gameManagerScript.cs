@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.SceneManagement;
 
 public class gameManagerScript : MonoBehaviour
 {
@@ -9,7 +10,6 @@ public class gameManagerScript : MonoBehaviour
         //Set Cursor to be invisible and locked at start
         Cursor.visible = false;
         Cursor.lockState = CursorLockMode.Locked;
-
     }
 
     void Update()
@@ -19,6 +19,13 @@ public class gameManagerScript : MonoBehaviour
         {
             ToggleCursor();
         }
+
+        // Press R to restart the current scene
+        if (Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame)
+        {
+            SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+        }
+
     }
 
     public void ToggleCursor()
