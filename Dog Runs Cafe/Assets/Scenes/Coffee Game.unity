@@ -286,6 +286,7 @@ GameObject:
   - component: {fileID: 330585545}
   - component: {fileID: 330585544}
   - component: {fileID: 330585547}
+  - component: {fileID: 330585548}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -411,6 +412,18 @@ MonoBehaviour:
     m_VarianceClampScale: 0.9
     m_ContrastAdaptiveSharpening: 0
   m_Version: 2
+--- !u!114 &330585548
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 330585543}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 714228832c44b2447821e4b63bdcf079, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: '::'
 --- !u!1 &410087039
 GameObject:
   m_ObjectHideFlags: 0
@@ -1470,14 +1483,14 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1941106543}
   serializedVersion: 2
-  m_LocalRotation: {x: -0.15372597, y: -0.021382974, z: -0.0033274586, w: 0.9878766}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0.358, y: -0.581, z: 2.202}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 2112620278}
   m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: -17.69, y: -2.48, z: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &1941106550
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1495,7 +1508,7 @@ MonoBehaviour:
   rotationalAcceleration: 1
   maxPitch: 30
   maxYaw: 45
-  holdThreshold: 0.25
+  holdThreshold: 0.125
   currentState: Idle
   pivotPoint: {fileID: 2112620277}
   pivotRb: {fileID: 0}
@@ -1527,14 +1540,14 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2112620277}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.20604403, y: 0.06409043, z: 0.018528946, w: 0.97626585}
-  m_LocalPosition: {x: -1.412, y: -0.131, z: -0.934}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -1.412, y: -0.131, z: -1.07}
   m_LocalScale: {x: 0.25, y: 0.25, z: 0.25}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 439725532}
   m_Father: {fileID: 1941106547}
-  m_LocalEulerAnglesHint: {x: 23.574, y: 8.329, z: 3.916}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!65 &2112620279
 BoxCollider:
   m_ObjectHideFlags: 0

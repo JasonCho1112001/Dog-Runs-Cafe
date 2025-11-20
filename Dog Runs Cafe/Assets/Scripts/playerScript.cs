@@ -7,41 +7,57 @@ public class playerScript : MonoBehaviour
     public float acceleration = 5.0f;
     public float maxSpeed = 3.0f;
     public float rotationalAcceleration = 5.0f;
+    public float rollAcceleration = 8.0f; // <-- roll (Z) control via Q/E
 
     [Header("Rotation Limits (degrees)")]
     public float maxPitch = 30f; // up/down
     public float maxYaw = 45f;   // left/right
+    public float maxRoll = 20f;  // roll limit (degrees)
 
     [Header("Grab / Hold")]
     public float holdThreshold = 0.25f; // seconds to consider a hold
+
+    [Header("Return to neutral")]
+    [Tooltip("Degrees per second the head will rotate back to neutral when exiting Rotate mode.")]
+    public float returnRotationSpeed = 360f;
+    [Tooltip("Units per second the head will move back to neutral Y position when exiting Rotate mode.")]
+    public float returnPositionSpeed = 5f;
+    public float returnPositionTolerance = 0.02f; // threshold to consider position returned
+    public float returnRotationTolerance = 0.25f; // threshold (degrees) to consider rotation returned
 
     [Header("States")]
     public string currentState = "Idle";
 
     [Header("References")]
-    public GameObject pivotPoint;
-    public Rigidbody pivotRb;
+    public Rigidbody rb;
 
     // internal
     float leftDownTime = -1f;
     bool holdStarted = false;
 
-    // reference rotation used to clamp pitch/yaw (set when entering Grab)
+    // reference rotation and position used to clamp / return (set when entering Grab)
     Quaternion grabReferenceRotation = Quaternion.identity;
+    Vector3 grabReferencePosition = Vector3.zero;
+
+    // return-to-neutral tracking
+    public bool returningToNeutral = false;
+    Quaternion returnTargetRotation = Quaternion.identity;
+    Vector3 returnTargetPosition = Vector3.zero; // kept for compatibility but NOT used in return
 
     void Awake()
     {
-        if (pivotRb == null && pivotPoint != null)
-            pivotRb = pivotPoint.GetComponent<Rigidbody>();
+        if (rb == null)
+            rb = GetComponent<Rigidbody>();
 
         // ensure default rotation lock for Idle
         ToggleLockedRotation(true);
 
-        // Set the rigidbody center of mass to the pivot point so AddTorque rotates about that pivot
-        UpdateCenterOfMass();
-
-        // initial reference rotation
-        if (pivotRb != null) grabReferenceRotation = pivotRb.rotation;
+        // initial reference rotation/position
+        if (rb != null)
+        {
+            grabReferenceRotation = rb.rotation;
+            grabReferencePosition = rb.position;
+        }
     }
 
     void Update()
@@ -52,10 +68,36 @@ public class playerScript : MonoBehaviour
 
     void FixedUpdate()
     {
-        if (pivotRb == null) return;
+        if (rb == null) return;
 
-        // keep center of mass aligned in case pivotPoint moves at runtime
-        UpdateCenterOfMass();
+        // If returning to neutral, drive rotation toward the target and skip input rotation/movement.
+        // TRANSLATION part removed: we no longer move position back here, only rotation.
+        if (returningToNeutral)
+        {
+            // prevent translation being driven by physics while returning
+            rb.linearVelocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+
+            // Rotate toward target
+            float step = returnRotationSpeed * Time.fixedDeltaTime;
+            Quaternion newRot = Quaternion.RotateTowards(rb.rotation, returnTargetRotation, step);
+            rb.MoveRotation(newRot);
+
+            // check completion (rotation only)
+            bool rotDone = Quaternion.Angle(rb.rotation, returnTargetRotation) <= returnRotationTolerance;
+
+            if (rotDone)
+            {
+                // snap final rotation, clear velocities and re-freeze rotation (back to Idle/Grab behavior)
+                rb.MoveRotation(returnTargetRotation);
+                rb.linearVelocity = Vector3.zero;
+                rb.angularVelocity = Vector3.zero;
+                returningToNeutral = false;
+                ToggleLockedRotation(true);
+            }
+
+            return;
+        }
 
         var mouse = Mouse.current;
         Vector2 delta = mouse != null ? mouse.delta.ReadValue() : Vector2.zero;
@@ -64,42 +106,97 @@ public class playerScript : MonoBehaviour
         {
             // Horizontal movement via forces (same behavior in Idle and Grab)
             Vector3 movement = new Vector3(delta.x, 0f, delta.y);
-            pivotRb.AddForce(movement * acceleration, ForceMode.Acceleration);
+            rb.AddForce(movement * acceleration, ForceMode.Acceleration);
 
-            // clamp horizontal velocity (use Rigidbody.velocity)
-            Vector3 horizontalVel = new Vector3(pivotRb.linearVelocity.x, 0f, pivotRb.linearVelocity.z);
+            // clamp horizontal velocity
+            Vector3 horizontalVel = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
             if (horizontalVel.magnitude > maxSpeed)
             {
                 Vector3 clamped = horizontalVel.normalized * maxSpeed;
-                pivotRb.linearVelocity = new Vector3(clamped.x, pivotRb.linearVelocity.y, clamped.z);
+                rb.linearVelocity = new Vector3(clamped.x, rb.linearVelocity.y, clamped.z);
             }
         }
         else if (currentState == "Rotate")
         {
-            // Rotation via torque while holding
-            // Map mouse delta to pitch (X) and yaw (Y) only; prevent any roll (Z)
-            Vector3 torque = new Vector3(delta.y, delta.x, 0f); // X = pitch, Y = yaw, Z = 0 (no roll)
-            pivotRb.AddTorque(torque * rotationalAcceleration, ForceMode.Acceleration);
+            // Rotation via torque while holding (pitch & yaw from mouse)
+            // apply pitch/yaw as relative (local) torque so roll (local Z) doesn't change their axes
+            Vector3 localTorque = new Vector3(delta.y, delta.x, 0f); // X = pitch, Y = yaw
+
+            // determine current pitch/yaw/roll (degrees) relative to the grab reference
+            Quaternion relative = Quaternion.Inverse(grabReferenceRotation) * rb.rotation;
+            Vector3 relEuler = relative.eulerAngles;
+            float pitch = relEuler.x > 180f ? relEuler.x - 360f : relEuler.x;
+            float yaw = relEuler.y > 180f ? relEuler.y - 360f : relEuler.y;
+            float roll = relEuler.z > 180f ? relEuler.z - 360f : relEuler.z;
+
+            const float axisEpsilon = 0.1f; // small tolerance to avoid jitter at limits
+
+            // Decide whether applying torque would increase magnitude past the allowed max for each axis.
+            bool blockPitchPositive = localTorque.x > 0f && pitch >= (maxPitch - axisEpsilon);
+            bool blockPitchNegative = localTorque.x < 0f && pitch <= (-maxPitch + axisEpsilon);
+            bool blockYawPositive   = localTorque.y > 0f && yaw   >= (maxYaw - axisEpsilon);
+            bool blockYawNegative   = localTorque.y < 0f && yaw   <= (-maxYaw + axisEpsilon);
+
+            Vector3 applyLocalTorque = Vector3.zero;
+            Vector3 av = rb.angularVelocity;
+
+            // Apply pitch torque only if it won't push past limits
+            if (!(blockPitchPositive || blockPitchNegative))
+            {
+                applyLocalTorque.x = localTorque.x;
+            }
+            else
+            {
+                av.x = 0f; // stop overshoot/drift on that axis
+            }
+
+            // Apply yaw torque only if it won't push past limits
+            if (!(blockYawPositive || blockYawNegative))
+            {
+                applyLocalTorque.y = localTorque.y;
+            }
+            else
+            {
+                av.y = 0f; // stop overshoot/drift on that axis
+            }
+
+            // If there's any pitch/yaw to apply, add relative torque
+            if (applyLocalTorque.sqrMagnitude > Mathf.Epsilon)
+                rb.AddRelativeTorque(applyLocalTorque * rotationalAcceleration, ForceMode.Acceleration);
+
+            // roll from Q/E keys (relative Z axis) — existing guarded roll logic
+            float rollInput = 0f;
+            if (Keyboard.current != null)
+            {
+                if (Keyboard.current.qKey.isPressed) rollInput += 1f;
+                if (Keyboard.current.eKey.isPressed) rollInput -= 1f;
+            }
+
+            if (Mathf.Abs(rollInput) > Mathf.Epsilon)
+            {
+                // block roll torque if it would increase magnitude past maxRoll
+                bool wouldIncreasePositive = rollInput > 0f && roll >= (maxRoll - axisEpsilon);
+                bool wouldIncreaseNegative = rollInput < 0f && roll <= (-maxRoll + axisEpsilon);
+
+                if (!(wouldIncreasePositive || wouldIncreaseNegative))
+                {
+                    rb.AddRelativeTorque(Vector3.forward * rollInput * rollAcceleration, ForceMode.Acceleration);
+                }
+                else
+                {
+                    av.z = 0f; // zero z angular velocity at limit
+                }
+            }
+
+            // write back possibly-modified angular velocity to avoid drift on blocked axes
+            rb.angularVelocity = av;
 
             // keep the pivot's position fixed while allowing rotation:
-            pivotRb.linearVelocity = Vector3.zero;
+            rb.linearVelocity = Vector3.zero;
 
-            // ensure no roll: zero Z component of angular velocity
-            Vector3 av = pivotRb.angularVelocity;
-            pivotRb.angularVelocity = new Vector3(av.x, av.y, 0f);
-
-            // Clamp rotation relative to the grabReferenceRotation
+            // clamp pitch/yaw/roll to configured limits
             ClampPitchYawToLimits();
         }
-    }
-
-    void UpdateCenterOfMass()
-    {
-        if (pivotRb == null || pivotPoint == null) return;
-
-        // centerOfMass is in local (transform) space; compute pivotPoint in rb's local space
-        Vector3 localCoM = pivotRb.transform.InverseTransformPoint(pivotPoint.transform.position);
-        pivotRb.centerOfMass = localCoM;
     }
 
     void HandleLeftClickTapAndHold()
@@ -119,11 +216,10 @@ public class playerScript : MonoBehaviour
             {
                 // start a hold
                 holdStarted = true;
-                // Only start rotate on hold when currently in Grab (spec)
-                if (currentState == "Grab")
+                if (currentState == "Idle" || currentState == "Grab")
                 {
                     currentState = "Rotate";
-                    ToggleLockedRotation(false); // will freeze position, allow rotation (except roll)
+                    ToggleLockedRotation(false); // freeze position, allow rotation
                     Debug.Log("Entered Rotate (hold)");
                 }
             }
@@ -141,9 +237,6 @@ public class playerScript : MonoBehaviour
                     currentState = "Grab";
                     ToggleLockedRotation(true);
 
-                    // set reference rotation when entering Grab so Rotate clamps from here
-                    if (pivotRb != null) grabReferenceRotation = pivotRb.rotation;
-
                     Debug.Log("Tapped -> Entered Grab");
                 }
                 else if (currentState == "Grab")
@@ -154,28 +247,22 @@ public class playerScript : MonoBehaviour
                 }
                 else if (currentState == "Rotate")
                 {
-                    // rare: quick release from rotate treat as returning to Grab
+                    // quick release from rotate -> return to Grab and start return-to-neutral (rotation only)
                     currentState = "Grab";
-                    ToggleLockedRotation(true);
 
-                    // update reference to current rotation
-                    if (pivotRb != null) grabReferenceRotation = pivotRb.rotation;
-
-                    Debug.Log("Tapped while rotating -> Grab");
+                    BeginReturnToNeutral();
+                    Debug.Log("Tapped while rotating -> Grab (returning to neutral rotation)");
                 }
             }
             else
             {
-                // was a hold-release: if we were rotating, return to Grab on release
+                // was a hold-release: if we were rotating, return to Grab on release and start return (rotation only)
                 if (currentState == "Rotate")
                 {
                     currentState = "Grab";
-                    ToggleLockedRotation(true);
 
-                    // update reference to current rotation
-                    if (pivotRb != null) grabReferenceRotation = pivotRb.rotation;
-
-                    Debug.Log("Released -> Returned to Grab");
+                    BeginReturnToNeutral();
+                    Debug.Log("Released -> Returned to Grab (returning to neutral rotation)");
                 }
             }
 
@@ -185,23 +272,40 @@ public class playerScript : MonoBehaviour
         }
     }
 
+    void BeginReturnToNeutral()
+    {
+        if (rb == null) return;
+
+        // set rotation target to the stored grab reference value (neutral)
+        returnTargetRotation = grabReferenceRotation;
+        returningToNeutral = true;
+
+        // freeze position to prevent the head being displaced while it rotates back
+        rb.constraints = RigidbodyConstraints.FreezePositionX | RigidbodyConstraints.FreezePositionY | RigidbodyConstraints.FreezePositionZ;
+
+        // clear velocities to prevent physics from fighting the return
+        rb.linearVelocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
+    }
+
     void ToggleLockedRotation(bool isLocked)
     {
-        if (pivotRb == null) return;
+        if (rb == null) return;
 
         if (isLocked)
         {
             // Prevent the pivot from rotating while still allowing translation
-            pivotRb.constraints = RigidbodyConstraints.FreezeRotation;
+            rb.constraints = 
+            RigidbodyConstraints.FreezeRotation |
+            RigidbodyConstraints.FreezePositionY;
         }
         else
         {
-            // During Rotate: prevent translation but allow rotation in X and Y only (freeze roll/Z)
-            pivotRb.constraints =
+            // During Rotate: prevent translation but allow rotation on all axes (Q/E will roll).
+            rb.constraints =
                 RigidbodyConstraints.FreezePositionX |
                 RigidbodyConstraints.FreezePositionY |
-                RigidbodyConstraints.FreezePositionZ |
-                RigidbodyConstraints.FreezeRotationZ;
+                RigidbodyConstraints.FreezePositionZ;
         }
     }
 
@@ -209,16 +313,19 @@ public class playerScript : MonoBehaviour
     {
         if (Keyboard.current != null && Keyboard.current.digit1Key.wasPressedThisFrame)
         {
+            bool wasRotate = currentState == "Rotate";
             currentState = "Idle";
             ToggleLockedRotation(true);
+            if (wasRotate) BeginReturnToNeutral();
             Debug.Log("Developer switched to Idle state");
         }
         else if (Keyboard.current != null && Keyboard.current.digit2Key.wasPressedThisFrame)
         {
+            bool wasRotate = currentState == "Rotate";
             currentState = "Grab";
             ToggleLockedRotation(true);
 
-            if (pivotRb != null) grabReferenceRotation = pivotRb.rotation;
+            if (wasRotate) BeginReturnToNeutral();
 
             Debug.Log("Developer switched to Grab state");
         }
@@ -236,36 +343,43 @@ public class playerScript : MonoBehaviour
         }
     }
 
-    // clamp pivotRb.rotation so pitch (X) and yaw (Y) stay within +/- configured limits relative to grabReferenceRotation
+    // clamp pivot.rotation so pitch (X), yaw (Y) and roll (Z) stay within +/- configured limits relative to grabReferenceRotation
     void ClampPitchYawToLimits()
     {
-        if (pivotRb == null) return;
+        if (rb == null) return;
 
-        // compute rotation relative to reference
-        Quaternion relative = Quaternion.Inverse(grabReferenceRotation) * pivotRb.rotation;
+        Quaternion relative = Quaternion.Inverse(grabReferenceRotation) * rb.rotation;
         Vector3 relEuler = relative.eulerAngles;
 
-        // convert to -180..180
         float pitch = relEuler.x > 180f ? relEuler.x - 360f : relEuler.x;
         float yaw = relEuler.y > 180f ? relEuler.y - 360f : relEuler.y;
+        float roll = relEuler.z > 180f ? relEuler.z - 360f : relEuler.z;
 
-        bool clamped = false;
+        bool clampedPitch = false;
+        bool clampedYaw = false;
+        bool clampedRoll = false;
 
-        float clampedPitch = Mathf.Clamp(pitch, -maxPitch, maxPitch);
-        if (!Mathf.Approximately(clampedPitch, pitch)) clamped = true;
+        float clampedPitchVal = Mathf.Clamp(pitch, -maxPitch, maxPitch);
+        if (!Mathf.Approximately(clampedPitchVal, pitch)) clampedPitch = true;
 
-        float clampedYaw = Mathf.Clamp(yaw, -maxYaw, maxYaw);
-        if (!Mathf.Approximately(clampedYaw, yaw)) clamped = true;
+        float clampedYawVal = Mathf.Clamp(yaw, -maxYaw, maxYaw);
+        if (!Mathf.Approximately(clampedYawVal, yaw)) clampedYaw = true;
 
-        if (clamped)
+        float clampedRollVal = Mathf.Clamp(roll, -maxRoll, maxRoll);
+        if (!Mathf.Approximately(clampedRollVal, roll)) clampedRoll = true;
+
+        if (clampedPitch || clampedYaw || clampedRoll)
         {
-            Quaternion targetRelative = Quaternion.Euler(clampedPitch, clampedYaw, 0f);
+            Quaternion targetRelative = Quaternion.Euler(clampedPitchVal, clampedYawVal, clampedRollVal);
             Quaternion targetWorld = grabReferenceRotation * targetRelative;
 
-            pivotRb.rotation = targetWorld;
+            rb.rotation = targetWorld;
 
-            // clear angular velocity to avoid immediate overshoot
-            pivotRb.angularVelocity = Vector3.zero;
+            Vector3 av = rb.angularVelocity;
+            if (clampedPitch) av.x = 0f;
+            if (clampedYaw) av.y = 0f;
+            if (clampedRoll) av.z = 0f;
+            rb.angularVelocity = av;
         }
     }
 }
