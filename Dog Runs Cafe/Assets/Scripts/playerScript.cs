@@ -14,6 +14,12 @@ public class playerScript : MonoBehaviour
     public float maxYaw = 45f;   // left/right
     public float maxRoll = 20f;  // roll limit (degrees)
 
+    [Header("Rotation Speed Limits (degrees/sec)")]
+    [Tooltip("Max angular speed for pitch and yaw (degrees per second).")]
+    public float maxPitchYawSpeed = 120f;
+    [Tooltip("Max angular speed for roll (degrees per second).")]
+    public float maxRollSpeed = 180f;
+
     [Header("Grab / Hold")]
     public float holdThreshold = 0.25f; // seconds to consider a hold
 
@@ -138,33 +144,20 @@ public class playerScript : MonoBehaviour
             bool blockYawNegative   = localTorque.y < 0f && yaw   <= (-maxYaw + axisEpsilon);
 
             Vector3 applyLocalTorque = Vector3.zero;
-            Vector3 av = rb.angularVelocity;
 
             // Apply pitch torque only if it won't push past limits
             if (!(blockPitchPositive || blockPitchNegative))
-            {
                 applyLocalTorque.x = localTorque.x;
-            }
-            else
-            {
-                av.x = 0f; // stop overshoot/drift on that axis
-            }
 
             // Apply yaw torque only if it won't push past limits
             if (!(blockYawPositive || blockYawNegative))
-            {
                 applyLocalTorque.y = localTorque.y;
-            }
-            else
-            {
-                av.y = 0f; // stop overshoot/drift on that axis
-            }
 
             // If there's any pitch/yaw to apply, add relative torque
             if (applyLocalTorque.sqrMagnitude > Mathf.Epsilon)
                 rb.AddRelativeTorque(applyLocalTorque * rotationalAcceleration, ForceMode.Acceleration);
 
-            // roll from Q/E keys (relative Z axis) — existing guarded roll logic
+            // roll from Q/E keys (relative Z axis)
             float rollInput = 0f;
             if (Keyboard.current != null)
             {
@@ -179,22 +172,42 @@ public class playerScript : MonoBehaviour
                 bool wouldIncreaseNegative = rollInput < 0f && roll <= (-maxRoll + axisEpsilon);
 
                 if (!(wouldIncreasePositive || wouldIncreaseNegative))
-                {
                     rb.AddRelativeTorque(Vector3.forward * rollInput * rollAcceleration, ForceMode.Acceleration);
-                }
-                else
-                {
-                    av.z = 0f; // zero z angular velocity at limit
-                }
             }
 
-            // write back possibly-modified angular velocity to avoid drift on blocked axes
-            rb.angularVelocity = av;
+            // After applying torque, clamp angular speed per-axis (local space) to configured max speeds
+            // Note: Rigidbody.angularVelocity is in world-space radians/sec. Convert to local to clamp per-axis.
+            Vector3 avWorld = rb.angularVelocity;
+            Vector3 avLocal = rb.transform.InverseTransformDirection(avWorld);
+
+            float maxPYRad = maxPitchYawSpeed * Mathf.Deg2Rad;
+            float maxRollRad = maxRollSpeed * Mathf.Deg2Rad;
+
+            // If an axis was blocked above, zero its local angular velocity to prevent drift.
+            if (blockPitchPositive || blockPitchNegative) avLocal.x = 0f;
+            if (blockYawPositive || blockYawNegative)     avLocal.y = 0f;
+            // For roll, if we're at limit and attempted roll was blocked, zero Z later — detect now:
+            bool rollBlocked = false;
+            if (Mathf.Abs(rollInput) > Mathf.Epsilon)
+            {
+                bool wouldIncreasePositive = rollInput > 0f && roll >= (maxRoll - axisEpsilon);
+                bool wouldIncreaseNegative = rollInput < 0f && roll <= (-maxRoll + axisEpsilon);
+                rollBlocked = (wouldIncreasePositive || wouldIncreaseNegative);
+            }
+            if (rollBlocked) avLocal.z = 0f;
+
+            // Clamp magnitudes
+            avLocal.x = Mathf.Clamp(avLocal.x, -maxPYRad, maxPYRad);
+            avLocal.y = Mathf.Clamp(avLocal.y, -maxPYRad, maxPYRad);
+            avLocal.z = Mathf.Clamp(avLocal.z, -maxRollRad, maxRollRad);
+
+            // write back angular velocity in world space
+            rb.angularVelocity = rb.transform.TransformDirection(avLocal);
 
             // keep the pivot's position fixed while allowing rotation:
             rb.linearVelocity = Vector3.zero;
 
-            // clamp pitch/yaw/roll to configured limits
+            // clamp pitch/yaw/roll to configured limits (angles)
             ClampPitchYawToLimits();
         }
     }

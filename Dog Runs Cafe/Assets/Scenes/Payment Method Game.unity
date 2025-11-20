@@ -648,7 +648,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::cameraScript
   target: {fileID: 2112620278}
   viewportEdge: {x: 0.1, y: 0.1}
-  maxForwardDistance: 10
+  maxForwardDistance: 4
   smoothTime: 0.15
 --- !u!1 &410087039
 GameObject:
@@ -2042,6 +2042,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 2768950272102160921, guid: 1e36fc11a73102841af44a5afa491962, type: 3}
+      propertyPath: maxRoll
+      value: 45
+      objectReference: {fileID: 0}
     - target: {fileID: 2932289034338125724, guid: 1e36fc11a73102841af44a5afa491962, type: 3}
       propertyPath: m_Mass
       value: 10
