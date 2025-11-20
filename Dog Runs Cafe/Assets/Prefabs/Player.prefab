@@ -343,6 +343,7 @@ GameObject:
   m_Component:
   - component: {fileID: 4672453987322783597}
   - component: {fileID: 2768950272102160921}
+  - component: {fileID: 7106891507257740061}
   - component: {fileID: 2932289034338125724}
   - component: {fileID: 5304873806148085160}
   - component: {fileID: 3905190931332505554}
@@ -394,6 +395,8 @@ MonoBehaviour:
   maxPitch: 30
   maxYaw: 45
   maxRoll: 20
+  maxPitchYawSpeed: 120
+  maxRollSpeed: 180
   holdThreshold: 0.25
   returnRotationSpeed: 360
   returnPositionSpeed: 5
@@ -401,7 +404,31 @@ MonoBehaviour:
   returnRotationTolerance: 0.25
   currentState: Idle
   rb: {fileID: 0}
+  cupObject: {fileID: 0}
+  qEReturnDelay: 0.6
+  qEDownTime: -1
   returningToNeutral: 0
+--- !u!114 &7106891507257740061
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4870827147062205358}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5114a4b3a3071ac4cb221866de4883a9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: '::'
+  mouthTransform: {fileID: 0}
+  grabRadius: 0.7
+  grabbableMask:
+    serializedVersion: 2
+    m_Bits: 128
+  jointBreakForce: 200
+  jointBreakTorque: 200
+  grabCooldown: 0.25
+  grabbedRb: {fileID: 0}
 --- !u!54 &2932289034338125724
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -629,6 +656,8 @@ GameObject:
   - component: {fileID: 3252095585039068436}
   - component: {fileID: 6461121862558920124}
   - component: {fileID: 6866562134168325393}
+  - component: {fileID: 152684638119494771}
+  - component: {fileID: 8466934183669396489}
   m_Layer: 0
   m_Name: Snout
   m_TagString: Untagged
@@ -728,6 +757,49 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
+--- !u!54 &152684638119494771
+Rigidbody:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8720956591703871732}
+  serializedVersion: 5
+  m_Mass: 1
+  m_LinearDamping: 0
+  m_AngularDamping: 0.05
+  m_CenterOfMass: {x: 0, y: 0, z: 0}
+  m_InertiaTensor: {x: 1, y: 1, z: 1}
+  m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ImplicitCom: 1
+  m_ImplicitTensor: 1
+  m_UseGravity: 1
+  m_IsKinematic: 0
+  m_Interpolate: 0
+  m_Constraints: 0
+  m_CollisionDetection: 0
+--- !u!138 &8466934183669396489
+FixedJoint:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8720956591703871732}
+  serializedVersion: 1
+  m_ConnectedBody: {fileID: 0}
+  m_ConnectedArticulationBody: {fileID: 0}
+  m_BreakForce: Infinity
+  m_BreakTorque: Infinity
+  m_EnableCollision: 0
+  m_EnablePreprocessing: 1
+  m_MassScale: 1
+  m_ConnectedMassScale: 1
 --- !u!1 &8789299366670873373
 GameObject:
   m_ObjectHideFlags: 0

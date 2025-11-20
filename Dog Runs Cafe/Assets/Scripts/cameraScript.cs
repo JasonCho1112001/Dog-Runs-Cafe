@@ -16,6 +16,15 @@ public class cameraScript : MonoBehaviour
     [Header("Smoothing")]
     public float smoothTime = 0.15f;
 
+    [Header("Vertical Follow")]
+    [Tooltip("When true the camera will follow the target's Y (up/down) movement as well.")]
+    public bool followY = true;
+
+    [Header("Offset")]
+    [Tooltip("Configurable offset applied to the camera's desired position. If 'Offset In Camera Space' is checked the offset is interpreted in the camera's local space.")]
+    public Vector3 followOffset = Vector3.zero;
+    public bool offsetInCameraSpace = true;
+
     Camera cam;
     Vector3 velocity = Vector3.zero;
 
@@ -59,12 +68,26 @@ public class cameraScript : MonoBehaviour
             // delta needed so the target ends up at clamped viewport pos
             Vector3 delta = target.position - worldAtClamped;
 
-            // only move on X and Z; preserve camera Y (height)
-            Vector3 moveDelta = new Vector3(delta.x, 0f, delta.z);
-            Vector3 desiredPos = cam.transform.position + moveDelta;
-            desiredPos.y = cam.transform.position.y;
+            Vector3 desiredPos;
+            // compute offset in world space (from configured offset)
+            Vector3 offsetWorld = offsetInCameraSpace ? cam.transform.TransformVector(followOffset) : followOffset;
 
-            // smooth follow (affects X/Z only because desiredPos.y == current Y)
+            if (followY)
+            {
+                // follow X/Y/Z movement delta and apply offset
+                desiredPos = cam.transform.position + delta + offsetWorld;
+            }
+            else
+            {
+                // only follow X/Z, preserve camera Y (height)
+                Vector3 moveDelta = new Vector3(delta.x, 0f, delta.z);
+                // do not apply any Y component of the offset when followY is false
+                Vector3 offsetNoY = new Vector3(offsetWorld.x, 0f, offsetWorld.z);
+                desiredPos = cam.transform.position + moveDelta + offsetNoY;
+                desiredPos.y = cam.transform.position.y;
+            }
+
+            // smooth follow (affects X/Z and Y when followY == true)
             cam.transform.position = Vector3.SmoothDamp(cam.transform.position, desiredPos, ref velocity, smoothTime);
         }
         else

@@ -9,11 +9,16 @@ public class playerScript : MonoBehaviour
     public float rotationalAcceleration = 5.0f;
     public float rollAcceleration = 8.0f; // <-- roll (Z) control via Q/E
 
+    // new: vertical movement limit (driven by mouse wheel)
+    [Tooltip("Max vertical speed (Y axis) when moving with the mouse wheel.")]
+    public float maxVerticalSpeed = 2.0f;
+    public float verticalSpeed = 5.0f;
+
     [Header("Rotation Limits (degrees)")]
     public float maxPitch = 30f; // up/down
     public float maxYaw = 45f;   // left/right
     public float maxRoll = 20f;  // roll limit (degrees)
-
+    
     [Header("Rotation Speed Limits (degrees/sec)")]
     [Tooltip("Max angular speed for pitch and yaw (degrees per second).")]
     public float maxPitchYawSpeed = 120f;
@@ -36,10 +41,20 @@ public class playerScript : MonoBehaviour
 
     [Header("References")]
     public Rigidbody rb;
+    // reference to mouth grabber so Q/E timer can be disabled while holding
+    public mouthGrabberScript mouthGrabber;
+    [Tooltip("Assign the cup GameObject (instance placed in the scene). It will be enabled when entering Grab and disabled when exiting Grab.")]
+    public GameObject cupObject;
 
-    // internal
-    float leftDownTime = -1f;
-    bool holdStarted = false;
+    // --- new: Q/E return-timer settings & internal tracking ---
+    [Header("Q/E/W/S return timer")]
+    [Tooltip("Seconds of continuous Q, E, W or S hold before BeginReturnToNeutral() is called.")]
+    public float qEReturnDelay = 0.6f;
+
+    // internal tracking for Q/E/W/S timer
+    public float qEDownTime = -1f;
+    bool qEReturnTriggered = false;
+    // --- end new fields ---
 
     // reference rotation and position used to clamp / return (set when entering Grab)
     Quaternion grabReferenceRotation = Quaternion.identity;
@@ -56,7 +71,6 @@ public class playerScript : MonoBehaviour
             rb = GetComponent<Rigidbody>();
 
         // ensure default rotation lock for Idle
-        ToggleLockedRotation(true);
 
         // initial reference rotation/position
         if (rb != null)
@@ -64,12 +78,16 @@ public class playerScript : MonoBehaviour
             grabReferenceRotation = rb.rotation;
             grabReferencePosition = rb.position;
         }
+
+        // ensure cup is disabled initially unless starting in Grab
+        if (cupObject != null)
+            cupObject.SetActive(currentState == "Grab");
     }
 
     void Update()
     {
-        HandleLeftClickTapAndHold();
-        DeveloperSwitchState();
+        // handle Q/E hold timer which triggers BeginReturnToNeutral after qEReturnDelay
+        HandleQETimer();
     }
 
     void FixedUpdate()
@@ -99,7 +117,9 @@ public class playerScript : MonoBehaviour
                 rb.linearVelocity = Vector3.zero;
                 rb.angularVelocity = Vector3.zero;
                 returningToNeutral = false;
-                ToggleLockedRotation(true);
+
+                // restore appropriate constraints so mouse movement / translation works again
+                //ToggleLockedRotation(true);
             }
 
             return;
@@ -108,10 +128,24 @@ public class playerScript : MonoBehaviour
         var mouse = Mouse.current;
         Vector2 delta = mouse != null ? mouse.delta.ReadValue() : Vector2.zero;
 
+        // In both Idle and Grab, allow horizontal movement and rotation (roll via Q/E).
         if (currentState == "Idle" || currentState == "Grab")
         {
-            // Horizontal movement via forces (same behavior in Idle and Grab)
-            Vector3 movement = new Vector3(delta.x, 0f, delta.y);
+            // Vertical input from mouse wheel (replaces W/S)
+            float scrollY = 0f;
+            if (mouse != null)
+            {
+                scrollY = mouse.scroll.ReadValue().y;
+            }
+            else
+            {
+                // fallback to legacy input if new Input System unavailable
+                scrollY = Input.GetAxis("Mouse ScrollWheel");
+            }
+            float verticalInput = scrollY * verticalSpeed;
+
+            // Horizontal movement via mouse x/z, vertical via mouse wheel
+            Vector3 movement = new Vector3(delta.x, verticalInput, delta.y);
             rb.AddForce(movement * acceleration, ForceMode.Acceleration);
 
             // clamp horizontal velocity
@@ -121,43 +155,14 @@ public class playerScript : MonoBehaviour
                 Vector3 clamped = horizontalVel.normalized * maxSpeed;
                 rb.linearVelocity = new Vector3(clamped.x, rb.linearVelocity.y, clamped.z);
             }
-        }
-        else if (currentState == "Rotate")
-        {
-            // Rotation via torque while holding (pitch & yaw from mouse)
-            // apply pitch/yaw as relative (local) torque so roll (local Z) doesn't change their axes
-            Vector3 localTorque = new Vector3(delta.y, delta.x, 0f); // X = pitch, Y = yaw
 
-            // determine current pitch/yaw/roll (degrees) relative to the grab reference
-            Quaternion relative = Quaternion.Inverse(grabReferenceRotation) * rb.rotation;
-            Vector3 relEuler = relative.eulerAngles;
-            float pitch = relEuler.x > 180f ? relEuler.x - 360f : relEuler.x;
-            float yaw = relEuler.y > 180f ? relEuler.y - 360f : relEuler.y;
-            float roll = relEuler.z > 180f ? relEuler.z - 360f : relEuler.z;
+            // clamp vertical velocity (Y)
+            float clampedY = Mathf.Clamp(rb.linearVelocity.y, -maxVerticalSpeed, maxVerticalSpeed);
+            rb.linearVelocity = new Vector3(rb.linearVelocity.x, clampedY, rb.linearVelocity.z);
 
-            const float axisEpsilon = 0.1f; // small tolerance to avoid jitter at limits
+            // Rotation (roll) controls: Q/E as before.
+            const float axisEpsilon = 0.1f;
 
-            // Decide whether applying torque would increase magnitude past the allowed max for each axis.
-            bool blockPitchPositive = localTorque.x > 0f && pitch >= (maxPitch - axisEpsilon);
-            bool blockPitchNegative = localTorque.x < 0f && pitch <= (-maxPitch + axisEpsilon);
-            bool blockYawPositive   = localTorque.y > 0f && yaw   >= (maxYaw - axisEpsilon);
-            bool blockYawNegative   = localTorque.y < 0f && yaw   <= (-maxYaw + axisEpsilon);
-
-            Vector3 applyLocalTorque = Vector3.zero;
-
-            // Apply pitch torque only if it won't push past limits
-            if (!(blockPitchPositive || blockPitchNegative))
-                applyLocalTorque.x = localTorque.x;
-
-            // Apply yaw torque only if it won't push past limits
-            if (!(blockYawPositive || blockYawNegative))
-                applyLocalTorque.y = localTorque.y;
-
-            // If there's any pitch/yaw to apply, add relative torque
-            if (applyLocalTorque.sqrMagnitude > Mathf.Epsilon)
-                rb.AddRelativeTorque(applyLocalTorque * rotationalAcceleration, ForceMode.Acceleration);
-
-            // roll from Q/E keys (relative Z axis)
             float rollInput = 0f;
             if (Keyboard.current != null)
             {
@@ -165,125 +170,51 @@ public class playerScript : MonoBehaviour
                 if (Keyboard.current.eKey.isPressed) rollInput -= 1f;
             }
 
-            if (Mathf.Abs(rollInput) > Mathf.Epsilon)
-            {
-                // block roll torque if it would increase magnitude past maxRoll
-                bool wouldIncreasePositive = rollInput > 0f && roll >= (maxRoll - axisEpsilon);
-                bool wouldIncreaseNegative = rollInput < 0f && roll <= (-maxRoll + axisEpsilon);
+            // determine current roll relative to the grab reference (signed -180..180)
+            Quaternion relative = Quaternion.Inverse(grabReferenceRotation) * rb.rotation;
+            Vector3 relEuler = relative.eulerAngles;
+            float roll = relEuler.z > 180f ? relEuler.z - 360f : relEuler.z;
 
-                if (!(wouldIncreasePositive || wouldIncreaseNegative))
-                    rb.AddRelativeTorque(Vector3.forward * rollInput * rollAcceleration, ForceMode.Acceleration);
+            // block roll if it would push past configured angle limits
+            bool blockRollPositive = rollInput > 0f && roll >= (maxRoll - axisEpsilon);
+            bool blockRollNegative = rollInput < 0f && roll <= (-maxRoll + axisEpsilon);
+
+            if (Mathf.Abs(rollInput) > Mathf.Epsilon && !(blockRollPositive || blockRollNegative))
+            {
+                rb.AddRelativeTorque(Vector3.forward * rollInput * rollAcceleration, ForceMode.Acceleration);
             }
 
-            // After applying torque, clamp angular speed per-axis (local space) to configured max speeds
-            // Note: Rigidbody.angularVelocity is in world-space radians/sec. Convert to local to clamp per-axis.
+            // Prevent any unwanted pitch/yaw by zeroing local X/Y angular velocity and clamp roll speed.
             Vector3 avWorld = rb.angularVelocity;
             Vector3 avLocal = rb.transform.InverseTransformDirection(avWorld);
 
-            float maxPYRad = maxPitchYawSpeed * Mathf.Deg2Rad;
+            // zero pitch/yaw local components to remove any rotation except roll
+            avLocal.x = 0f;
+            avLocal.y = 0f;
+
             float maxRollRad = maxRollSpeed * Mathf.Deg2Rad;
+            // if roll was blocked, zero local Z to prevent drifting into the limit
+            if (blockRollPositive || blockRollNegative) avLocal.z = 0f;
 
-            // If an axis was blocked above, zero its local angular velocity to prevent drift.
-            if (blockPitchPositive || blockPitchNegative) avLocal.x = 0f;
-            if (blockYawPositive || blockYawNegative)     avLocal.y = 0f;
-            // For roll, if we're at limit and attempted roll was blocked, zero Z later — detect now:
-            bool rollBlocked = false;
-            if (Mathf.Abs(rollInput) > Mathf.Epsilon)
-            {
-                bool wouldIncreasePositive = rollInput > 0f && roll >= (maxRoll - axisEpsilon);
-                bool wouldIncreaseNegative = rollInput < 0f && roll <= (-maxRoll + axisEpsilon);
-                rollBlocked = (wouldIncreasePositive || wouldIncreaseNegative);
-            }
-            if (rollBlocked) avLocal.z = 0f;
-
-            // Clamp magnitudes
-            avLocal.x = Mathf.Clamp(avLocal.x, -maxPYRad, maxPYRad);
-            avLocal.y = Mathf.Clamp(avLocal.y, -maxPYRad, maxPYRad);
             avLocal.z = Mathf.Clamp(avLocal.z, -maxRollRad, maxRollRad);
 
-            // write back angular velocity in world space
             rb.angularVelocity = rb.transform.TransformDirection(avLocal);
-
-            // keep the pivot's position fixed while allowing rotation:
+        }
+        else
+        {
+            // For other states (e.g. Disabled), ensure no input-driven motion
             rb.linearVelocity = Vector3.zero;
-
-            // clamp pitch/yaw/roll to configured limits (angles)
-            ClampPitchYawToLimits();
+            rb.angularVelocity = Vector3.zero;
         }
     }
 
-    void HandleLeftClickTapAndHold()
+    // helper to enable/disable cup when entering/exiting Grab
+    void SetCupActive(bool active)
     {
-        var mouse = Mouse.current;
-        if (mouse == null) return;
-
-        if (mouse.leftButton.wasPressedThisFrame)
-        {
-            leftDownTime = Time.time;
-            holdStarted = false;
-        }
-
-        if (mouse.leftButton.isPressed && leftDownTime > 0f && !holdStarted)
-        {
-            if (Time.time - leftDownTime >= holdThreshold)
-            {
-                // start a hold
-                holdStarted = true;
-                if (currentState == "Idle" || currentState == "Grab")
-                {
-                    currentState = "Rotate";
-                    ToggleLockedRotation(false); // freeze position, allow rotation
-                    Debug.Log("Entered Rotate (hold)");
-                }
-            }
-        }
-
-        if (mouse.leftButton.wasReleasedThisFrame)
-        {
-            float heldFor = leftDownTime > 0f ? (Time.time - leftDownTime) : 0f;
-
-            if (heldFor < holdThreshold)
-            {
-                // tap: toggle between Idle <-> Grab
-                if (currentState == "Idle")
-                {
-                    currentState = "Grab";
-                    ToggleLockedRotation(true);
-
-                    Debug.Log("Tapped -> Entered Grab");
-                }
-                else if (currentState == "Grab")
-                {
-                    currentState = "Idle";
-                    ToggleLockedRotation(true);
-                    Debug.Log("Tapped -> Returned to Idle");
-                }
-                else if (currentState == "Rotate")
-                {
-                    // quick release from rotate -> return to Grab and start return-to-neutral (rotation only)
-                    currentState = "Grab";
-
-                    BeginReturnToNeutral();
-                    Debug.Log("Tapped while rotating -> Grab (returning to neutral rotation)");
-                }
-            }
-            else
-            {
-                // was a hold-release: if we were rotating, return to Grab on release and start return (rotation only)
-                if (currentState == "Rotate")
-                {
-                    currentState = "Grab";
-
-                    BeginReturnToNeutral();
-                    Debug.Log("Released -> Returned to Grab (returning to neutral rotation)");
-                }
-            }
-
-            // reset hold tracking
-            leftDownTime = -1f;
-            holdStarted = false;
-        }
+        if (cupObject != null)
+            cupObject.SetActive(active);
     }
+
 
     void BeginReturnToNeutral()
     {
@@ -293,106 +224,84 @@ public class playerScript : MonoBehaviour
         returnTargetRotation = grabReferenceRotation;
         returningToNeutral = true;
 
-        // freeze position to prevent the head being displaced while it rotates back
-        rb.constraints = RigidbodyConstraints.FreezePositionX | RigidbodyConstraints.FreezePositionY | RigidbodyConstraints.FreezePositionZ;
-
         // clear velocities to prevent physics from fighting the return
         rb.linearVelocity = Vector3.zero;
         rb.angularVelocity = Vector3.zero;
     }
 
-    void ToggleLockedRotation(bool isLocked)
+    // new: start timer only after Q/E hold ends (W/S removed)
+    void HandleQETimer()
     {
-        if (rb == null) return;
-
-        if (isLocked)
+        if (Keyboard.current == null)
         {
-            // Prevent the pivot from rotating while still allowing translation
-            rb.constraints = 
-            RigidbodyConstraints.FreezeRotation |
-            RigidbodyConstraints.FreezePositionY;
+            qEDownTime = -1f;
+            qEReturnTriggered = false;
+            return;
+        }
+
+        // don't run the Q/E timer while the mouth grabber is holding something
+        if (mouthGrabber != null && mouthGrabber.IsHolding)
+        {
+            Debug.Log("Mouth is holding something; disabling Q/E return timer.");
+            qEDownTime = -1f;
+            qEReturnTriggered = false;
+            return;
+        }
+
+        bool qPressed = Keyboard.current.qKey.isPressed;
+        bool ePressed = Keyboard.current.eKey.isPressed;
+        bool eitherPressed = qPressed || ePressed;
+
+        // qEDownTime state machine:
+        // -1f = idle (no hold, no pending)
+        // -2f = currently holding (keys down)
+        // >=0 = pending timer start time (after release)
+
+        if (eitherPressed)
+        {
+            // If a pending return was running, cancel it and mark as holding again.
+            if (qEDownTime >= 0f)
+            {
+                qEDownTime = -2f;
+                qEReturnTriggered = false;
+            }
+            else if (qEDownTime == -1f)
+            {
+                // newly started hold
+                qEDownTime = -2f;
+                qEReturnTriggered = false;
+            }
+            // else already holding (-2f): nothing to do
+            return;
         }
         else
         {
-            // During Rotate: prevent translation but allow rotation on all axes (Q/E will roll).
-            rb.constraints =
-                RigidbodyConstraints.FreezePositionX |
-                RigidbodyConstraints.FreezePositionY |
-                RigidbodyConstraints.FreezePositionZ;
+            // No keys currently pressed.
+            if (qEDownTime == -2f)
+            {
+                // We were holding and now released -> start the post-release timer.
+                qEDownTime = Time.time;
+                qEReturnTriggered = false;
+                return;
+            }
+
+            if (qEDownTime >= 0f && !qEReturnTriggered)
+            {
+                // Timer running: check completion
+                if (Time.time - qEDownTime >= qEReturnDelay)
+                {
+                    if ((currentState == "Idle" || currentState == "Grab") && !returningToNeutral)
+                    {
+                        BeginReturnToNeutral();
+                        qEReturnTriggered = true;
+                    }
+                }
+            }
+
+            // If triggered or idle, ensure we go back to idle state (so subsequent presses behave correctly)
+            if (qEReturnTriggered)
+                qEDownTime = -1f;
         }
     }
 
-    void DeveloperSwitchState()
-    {
-        if (Keyboard.current != null && Keyboard.current.digit1Key.wasPressedThisFrame)
-        {
-            bool wasRotate = currentState == "Rotate";
-            currentState = "Idle";
-            ToggleLockedRotation(true);
-            if (wasRotate) BeginReturnToNeutral();
-            Debug.Log("Developer switched to Idle state");
-        }
-        else if (Keyboard.current != null && Keyboard.current.digit2Key.wasPressedThisFrame)
-        {
-            bool wasRotate = currentState == "Rotate";
-            currentState = "Grab";
-            ToggleLockedRotation(true);
-
-            if (wasRotate) BeginReturnToNeutral();
-
-            Debug.Log("Developer switched to Grab state");
-        }
-        else if (Keyboard.current != null && Keyboard.current.digit3Key.wasPressedThisFrame)
-        {
-            currentState = "Rotate";
-            ToggleLockedRotation(false);
-            Debug.Log("Developer switched to Rotate state");
-        }
-        else if (Keyboard.current != null && Keyboard.current.digit4Key.wasPressedThisFrame)
-        {
-            currentState = "Disabled";
-            ToggleLockedRotation(false);
-            Debug.Log("Developer switched to Disabled state");
-        }
-    }
-
-    // clamp pivot.rotation so pitch (X), yaw (Y) and roll (Z) stay within +/- configured limits relative to grabReferenceRotation
-    void ClampPitchYawToLimits()
-    {
-        if (rb == null) return;
-
-        Quaternion relative = Quaternion.Inverse(grabReferenceRotation) * rb.rotation;
-        Vector3 relEuler = relative.eulerAngles;
-
-        float pitch = relEuler.x > 180f ? relEuler.x - 360f : relEuler.x;
-        float yaw = relEuler.y > 180f ? relEuler.y - 360f : relEuler.y;
-        float roll = relEuler.z > 180f ? relEuler.z - 360f : relEuler.z;
-
-        bool clampedPitch = false;
-        bool clampedYaw = false;
-        bool clampedRoll = false;
-
-        float clampedPitchVal = Mathf.Clamp(pitch, -maxPitch, maxPitch);
-        if (!Mathf.Approximately(clampedPitchVal, pitch)) clampedPitch = true;
-
-        float clampedYawVal = Mathf.Clamp(yaw, -maxYaw, maxYaw);
-        if (!Mathf.Approximately(clampedYawVal, yaw)) clampedYaw = true;
-
-        float clampedRollVal = Mathf.Clamp(roll, -maxRoll, maxRoll);
-        if (!Mathf.Approximately(clampedRollVal, roll)) clampedRoll = true;
-
-        if (clampedPitch || clampedYaw || clampedRoll)
-        {
-            Quaternion targetRelative = Quaternion.Euler(clampedPitchVal, clampedYawVal, clampedRollVal);
-            Quaternion targetWorld = grabReferenceRotation * targetRelative;
-
-            rb.rotation = targetWorld;
-
-            Vector3 av = rb.angularVelocity;
-            if (clampedPitch) av.x = 0f;
-            if (clampedYaw) av.y = 0f;
-            if (clampedRoll) av.z = 0f;
-            rb.angularVelocity = av;
-        }
-    }
 }
