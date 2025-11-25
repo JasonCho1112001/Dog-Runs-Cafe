@@ -41,6 +41,7 @@ public class playerKetchupScript : MonoBehaviour
     public GameObject ketchupTip;
 
     // internal
+    private AudioSource sound;
     float leftDownTime = -1f;
     bool holdStarted = false;
 
@@ -55,6 +56,8 @@ public class playerKetchupScript : MonoBehaviour
 
     void Awake()
     {
+        sound = GetComponent<AudioSource>();
+
         if (rb == null)
             rb = GetComponent<Rigidbody>();
 
@@ -407,6 +410,8 @@ public class playerKetchupScript : MonoBehaviour
 
         if (mouse == null) return;
 
+        if (mouse.rightButton.wasPressedThisFrame) sound.Play();
+
         if (mouse.rightButton.isPressed) 
         {
             GameObject ketchupSphere = KetchupPool.SharedInstance.GetPooledObject();
@@ -418,5 +423,6 @@ public class playerKetchupScript : MonoBehaviour
             }
             KetchupPool.SharedInstance.updatePooledObject();
         }
+        if (!mouse.rightButton.isPressed) sound.Stop();
     }
 }
