@@ -23,6 +23,6 @@ public class KetchupCollisionHandler : MonoBehaviour
     {
         Vector3 closestPoint = other.ClosestPoint(ketchupPosition);
 
-        return closestPoint + (Vector3.up*4f) * 0.01f;
+        return closestPoint + (Vector3.up*10f) * 0.01f;
     }
 }
