@@ -14,6 +14,15 @@ public class playerScript : MonoBehaviour
     public float maxVerticalSpeed = 2.0f;
     public float verticalSpeed = 5.0f;
 
+    [Header("Mouse Wheel Smoothing")]
+    [Tooltip("How quickly the current wheel input approaches the target (units/sec). Higher = snappier)")]
+    public float wheelSmoothing = 8f;
+    [Tooltip("How quickly the wheel target decays back to zero (units/sec).")]
+    public float wheelDecay = 3f;
+    // runtime wheel state
+    float wheelInputTarget = 0f;
+    float wheelInputCurrent = 0f;
+
     [Header("Rotation Limits (degrees)")]
     public float maxPitch = 30f; // up/down
     public float maxYaw = 45f;   // left/right
@@ -88,6 +97,15 @@ public class playerScript : MonoBehaviour
     {
         // handle Q/E hold timer which triggers BeginReturnToNeutral after qEReturnDelay
         HandleQETimer();
+
+        // Developer shortcut: press F to immediately start returning the head to neutral
+        if (Keyboard.current != null && Keyboard.current.fKey.wasPressedThisFrame)
+        {
+            // start the return and reset Q/E timer state to avoid accidental re-triggers
+            BeginReturnToNeutral();
+            qEDownTime = -1f;
+            qEReturnTriggered = false;
+        }
     }
 
     void FixedUpdate()
@@ -131,21 +149,29 @@ public class playerScript : MonoBehaviour
         // In both Idle and Grab, allow horizontal movement and rotation (roll via Q/E).
         if (currentState == "Idle" || currentState == "Grab")
         {
-            // Vertical input from mouse wheel (replaces W/S)
-            float scrollY = 0f;
-            if (mouse != null)
+            // Vertical input from W/S keys (replaces mouse wheel)
+            float upDown = 0f;
+            if (Keyboard.current != null)
             {
-                scrollY = mouse.scroll.ReadValue().y;
+                if (Keyboard.current.wKey.isPressed) upDown += 1f;
+                if (Keyboard.current.sKey.isPressed) upDown -= 1f;
             }
             else
             {
-                // fallback to legacy input if new Input System unavailable
-                scrollY = Input.GetAxis("Mouse ScrollWheel");
+                // fallback for legacy Input system
+                if (Input.GetKey(KeyCode.W)) upDown += 1f;
+                if (Input.GetKey(KeyCode.S)) upDown -= 1f;
             }
-            float verticalInput = scrollY * verticalSpeed;
 
-            // Horizontal movement via mouse x/z, vertical via mouse wheel
-            Vector3 movement = new Vector3(delta.x, verticalInput, delta.y);
+            // Apply continuous vertical force while W or S is held.
+            // Use ForceMode.Acceleration so mass does not change feel across different rigidbodies.
+            if (Mathf.Abs(upDown) > Mathf.Epsilon)
+            {
+                rb.AddForce(Vector3.up * upDown * verticalSpeed, ForceMode.Acceleration);
+            }
+
+            // Horizontal movement via mouse delta, vertical handled above
+            Vector3 movement = new Vector3(delta.x, 0f, delta.y);
             rb.AddForce(movement * acceleration, ForceMode.Acceleration);
 
             // clamp horizontal velocity
@@ -242,7 +268,6 @@ public class playerScript : MonoBehaviour
         // don't run the Q/E timer while the mouth grabber is holding something
         if (mouthGrabber != null && mouthGrabber.IsHolding)
         {
-            Debug.Log("Mouth is holding something; disabling Q/E return timer.");
             qEDownTime = -1f;
             qEReturnTriggered = false;
             return;

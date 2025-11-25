@@ -66,10 +66,9 @@ public class mouthGrabberScript : MonoBehaviour
                 bestDist = d;
             }
         }
-        if (best == null) { Debug.Log("No valid object to grab found."); return false; }
+        if (best == null) { return false; }
 
         Grab(best.attachedRigidbody);
-        Debug.Log("Grabbed: " + best.name);
         return true;
     }
 

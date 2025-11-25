@@ -72,6 +72,8 @@ public class CardScript : MonoBehaviour
             // if reader currently allows tap (flat orientation) and this card is touching it -> fulfill
             if (reader.canTap)
             {
+                // notify reader (runs flash / visual feedback) then mark the card fulfilled
+                reader.NotifyCardTapped(gameObject);
                 Fulfill();
             }
         }
@@ -83,6 +85,8 @@ public class CardScript : MonoBehaviour
         var reader = other.GetComponent<creditCardReader>();
         if (reader != null && reader.canTap && !isFulfilled)
         {
+            // notify reader and then fulfill
+            reader.NotifyCardTapped(gameObject);
             Fulfill();
         }
     }

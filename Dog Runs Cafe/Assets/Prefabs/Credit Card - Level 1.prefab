@@ -10,15 +10,15 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: -8679921383154817045, guid: 7eb782c2cb6e4d042b2cb71fe3dad2b5, type: 3}
       propertyPath: m_LocalScale.x
-      value: 0.1
+      value: 0.2
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 7eb782c2cb6e4d042b2cb71fe3dad2b5, type: 3}
       propertyPath: m_LocalScale.y
-      value: 0.1
+      value: 0.2
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 7eb782c2cb6e4d042b2cb71fe3dad2b5, type: 3}
       propertyPath: m_LocalScale.z
-      value: 0.1
+      value: 0.2
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 7eb782c2cb6e4d042b2cb71fe3dad2b5, type: 3}
       propertyPath: m_LocalPosition.x
@@ -99,7 +99,7 @@ Rigidbody:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 330356956903268293}
   serializedVersion: 5
-  m_Mass: 0.1
+  m_Mass: 0.01
   m_LinearDamping: 0
   m_AngularDamping: 0.05
   m_CenterOfMass: {x: 0, y: 0, z: 0}
@@ -156,4 +156,4 @@ MonoBehaviour:
   tossSpeed: 6
   arriveThreshold: 0.15
   isFulfilled: 0
-  pickupRadius: 5
+  pickupRadius: 6
