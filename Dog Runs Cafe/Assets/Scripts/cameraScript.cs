@@ -12,6 +12,8 @@ public class cameraScript : MonoBehaviour
     [Header("Forward Distance")]
     [Tooltip("Maximum allowed distance (camera space) before the camera starts moving to keep the target closer.")]
     public float maxForwardDistance = 10f;
+    [Tooltip("Minimum allowed distance (camera space) before the camera starts moving backward to keep the target further away.")]
+    public float minForwardDistance = 1f;
 
     [Header("Smoothing")]
     public float smoothTime = 0.15f;
@@ -50,16 +52,22 @@ public class cameraScript : MonoBehaviour
         float clampedX = Mathf.Clamp(vp.x, minX, maxX);
         float clampedY = Mathf.Clamp(vp.y, minY, maxY);
 
-        // decide whether to follow: outside edge box OR beyond forward distance
+        // decide whether to follow: outside edge box OR beyond forward distance OR too close
         bool outsideEdge = (!Mathf.Approximately(clampedX, vp.x) || !Mathf.Approximately(clampedY, vp.y));
         bool beyondForward = vp.z > maxForwardDistance;
+        bool tooClose = vp.z < minForwardDistance;
 
-        if (outsideEdge || beyondForward)
+        if (outsideEdge || beyondForward || tooClose)
         {
             // build a viewport position we want the target to be at:
             // - use clamped X/Y (so it will move toward the inner box if needed)
             // - if target is too far away, set viewport z to maxForwardDistance so camera moves closer
-            float targetZ = beyondForward ? maxForwardDistance : vp.z;
+            // - if target is too close, set viewport z to minForwardDistance so camera moves backward
+            float targetZ;
+            if (beyondForward) targetZ = maxForwardDistance;
+            else if (tooClose) targetZ = minForwardDistance;
+            else targetZ = vp.z;
+
             Vector3 clampedVP = new Vector3(clampedX, clampedY, targetZ);
 
             // world point that corresponds to the clamped viewport coordinate (at chosen depth)
