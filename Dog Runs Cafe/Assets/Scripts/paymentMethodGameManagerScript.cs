@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 public class paymentMethodGameManagerScript : MonoBehaviour
 {
@@ -11,6 +12,13 @@ public class paymentMethodGameManagerScript : MonoBehaviour
     [Header("Prefabs")]
     public GameObject customer;
     public GameObject[] waitingPoints;
+    [Header("Exit")]
+    [Tooltip("Transform customers walk to when satisfied")]
+    public Transform exitPoint;
+
+    [Header("Aiming")]
+    [Tooltip("Where customers toss their card to (Aiming Point)")]
+    public Transform aimingPoint;
 
     [Header("Spawn")]
     [Tooltip("Where customers will spawn.")]
@@ -23,21 +31,37 @@ public class paymentMethodGameManagerScript : MonoBehaviour
 
     Coroutine spawnRoutine;
 
+    // track which waitingPoints are currently occupied
+    bool[] waitingPointOccupied;
+    // map spawned customer -> assigned waiting point index
+    Dictionary<customerScript, int> waitingAssignments = new Dictionary<customerScript, int>();
+
     void Awake()
     {
         EnsureListCapacity();
+        EnsureWaitingPoints();
     }
 
     void OnValidate()
     {
         EnsureListCapacity();
+        EnsureWaitingPoints();
     }
 
     void Start()
     {
-        // start spawn loop if configured
         if (spawnPoint != null && customer != null && spawnInterval > 0f)
             spawnRoutine = StartCoroutine(SpawnLoop());
+    }
+
+    void Update()
+    {
+        // developer shortcut: satisfy all customers when F5 is pressed (new Input System)
+        var kb = UnityEngine.InputSystem.Keyboard.current;
+        if (kb != null && kb.f5Key.wasPressedThisFrame)
+        {
+            SatisfyAllCustomers();
+        }
     }
 
     void OnDisable()
@@ -58,6 +82,22 @@ public class paymentMethodGameManagerScript : MonoBehaviour
             customers.RemoveAt(customers.Count - 1);
     }
 
+    void EnsureWaitingPoints()
+    {
+        int len = (waitingPoints != null) ? waitingPoints.Length : 0;
+        if (waitingPointOccupied == null || waitingPointOccupied.Length != len)
+            waitingPointOccupied = new bool[len];
+
+        // clear map entries that reference out-of-range indices
+        var toRemove = new List<customerScript>();
+        foreach (var kv in waitingAssignments)
+        {
+            if (kv.Value < 0 || kv.Value >= len) toRemove.Add(kv.Key);
+        }
+        foreach (var k in toRemove)
+            waitingAssignments.Remove(k);
+    }
+
     IEnumerator SpawnLoop()
     {
         while (true)
@@ -72,6 +112,9 @@ public class paymentMethodGameManagerScript : MonoBehaviour
         if (customer == null || spawnPoint == null) return;
         if (IsFull()) return;
 
+        int freeWaitingIndex = FindFirstFreeWaitingPointIndex();
+        if (freeWaitingIndex == -1) return; // no free waiting point available
+
         GameObject go = Instantiate(customer, spawnPoint.position, spawnPoint.rotation);
         var cust = go.GetComponent<customerScript>();
         if (cust == null)
@@ -81,29 +124,77 @@ public class paymentMethodGameManagerScript : MonoBehaviour
             return;
         }
 
-        // pass manager's waitingPoints array to the spawned customer (if the customer script exposes this field)
+        // assign manager waitingPoints array to the customer if available
         if (waitingPoints != null && waitingPoints.Length > 0)
-        {
             cust.waitingPoints = waitingPoints;
+
+        // give the exit point reference to the customer
+        cust.exitPoint = exitPoint;
+
+        // give aiming point reference to the customer so they toss their card when they reach the slot
+        cust.aimingPoint = aimingPoint;
+
+        // assign specific waiting point to the customer and mark it occupied
+        var assignedPoint = waitingPoints[freeWaitingIndex];
+        if (assignedPoint != null)
+        {
+            cust.MoveTo(assignedPoint.transform);
+            waitingPointOccupied[freeWaitingIndex] = true;
+            waitingAssignments[cust] = freeWaitingIndex;
         }
 
-        // attempt to place into first free slot
+        // attempt to place into first free slot in customers list
         if (!AddCustomer(cust))
         {
-            // no free slot (race) -> destroy spawned object
+            // no free slot -> cleanup
+            waitingAssignments.Remove(cust);
+            if (assignedPoint != null) waitingPointOccupied[freeWaitingIndex] = false;
             Destroy(go);
             return;
         }
 
-        // subscribe so manager cleans up the slot when customer is served
+        // subscribe so manager cleans up the slot and waiting point when customer is served
         cust.OnServed += HandleCustomerServed;
+    }
+
+    int FindFirstFreeWaitingPointIndex()
+    {
+        if (waitingPoints == null) return -1;
+        for (int i = 0; i < waitingPoints.Length; i++)
+        {
+            if (waitingPoints[i] == null) continue; // skip null entries
+            if (waitingPointOccupied == null || i >= waitingPointOccupied.Length) continue;
+            if (!waitingPointOccupied[i]) return i;
+        }
+        return -1;
     }
 
     void HandleCustomerServed(customerScript c)
     {
-        // unsubscribe and clear slot
         if (c != null) c.OnServed -= HandleCustomerServed;
+
+        // free assigned waiting point if any
+        if (c != null && waitingAssignments.TryGetValue(c, out int idx))
+        {
+            if (waitingPointOccupied != null && idx >= 0 && idx < waitingPointOccupied.Length)
+                waitingPointOccupied[idx] = false;
+            waitingAssignments.Remove(c);
+        }
+
         RemoveCustomer(c);
+    }
+
+    // trigger all current customers to walk to exit (developer shortcut)
+    public void SatisfyAllCustomers()
+    {
+        for (int i = 0; i < customers.Count; i++)
+        {
+            var c = customers[i];
+            if (c != null)
+            {
+                c.Satisfy();
+            }
+        }
     }
 
     // Try to add a customer into the first free slot. Returns true if added.
@@ -125,6 +216,15 @@ public class paymentMethodGameManagerScript : MonoBehaviour
     public bool RemoveCustomer(customerScript c)
     {
         if (c == null) return false;
+
+        // also free waiting point if mapping exists
+        if (waitingAssignments.TryGetValue(c, out int idx))
+        {
+            if (waitingPointOccupied != null && idx >= 0 && idx < waitingPointOccupied.Length)
+                waitingPointOccupied[idx] = false;
+            waitingAssignments.Remove(c);
+        }
+
         for (int i = 0; i < customers.Count; i++)
         {
             if (customers[i] == c)
