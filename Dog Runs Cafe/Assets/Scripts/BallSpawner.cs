@@ -10,9 +10,11 @@ public class BallSpawner : MonoBehaviour
         for (int i = 0; i < ballCount; i++)
         {
             Vector3 offset = Random.insideUnitSphere * 0.1f;
-            offset.y = Mathf.Abs(offset.y); // keep above the bottom
+            offset.y = Mathf.Abs(offset.y); 
 
-            Instantiate(ballPrefab, transform.position + offset, Quaternion.identity, transform.parent);
+            var ball = Instantiate(ballPrefab, transform.position + offset, Quaternion.identity, transform.parent);
+
+            ball.transform.localScale = Vector3.one * 0.03f;
         }
     }
 }

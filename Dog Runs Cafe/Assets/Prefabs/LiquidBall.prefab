@@ -13,6 +13,7 @@ GameObject:
   - component: {fileID: 8556192929508521723}
   - component: {fileID: 6784741379769058700}
   - component: {fileID: 7025890586039545638}
+  - component: {fileID: 1230060623506061319}
   m_Layer: 0
   m_Name: LiquidBall
   m_TagString: Untagged
@@ -139,3 +140,15 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 0
+--- !u!114 &1230060623506061319
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4641375954153670400}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c6603ffc1b52e924683869686db73b4a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BallGroundCheck
