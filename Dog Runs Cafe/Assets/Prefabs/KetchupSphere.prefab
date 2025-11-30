@@ -131,6 +131,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 04eefd386a4fa8a4783e37b8df3158da, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::KetchupCollisionHandler
+  ketchupColliderList: 
   ketchupSplash: {fileID: 3859441020898587541, guid: fd4b7e1ec92361c45a84f02bd75e0719, type: 3}
 --- !u!64 &5264662308467519900
 MeshCollider:
