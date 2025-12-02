@@ -1,3 +1,5 @@
+using NUnit.Framework;
+using System.Runtime.CompilerServices;
 using UnityEngine;
 
 public class KetchupCollisionHandler : MonoBehaviour
@@ -6,8 +8,14 @@ public class KetchupCollisionHandler : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        if (other.CompareTag("Plate"))
+        if (other.CompareTag("Plate") || other.CompareTag("Omelette"))
         {
+            bool isCorrect = other.CompareTag("Omelette");
+            if (ketchupScoreManager.Instance != null)
+            {
+                ketchupScoreManager.Instance.AddHit(isCorrect);
+            }
+
             Vector3 spawnPosition = GetContactPoint(other, transform.position);
 
             gameObject.SetActive(false);

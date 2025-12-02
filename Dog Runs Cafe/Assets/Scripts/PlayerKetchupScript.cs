@@ -1,3 +1,5 @@
+using System.Collections;
+using TMPro;
 using UnityEditor.Timeline.Actions;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -64,8 +66,11 @@ public class playerKetchupScript : MonoBehaviour
     // internal
     private AudioSource sound;
     public AudioClip Ding;
+    public TextMeshPro scoreText;
     float leftDownTime = -1f;
+    float scoreAccuracy = 0f;
     bool holdStarted = false;
+    bool isGameFinished = false;
     InputAction finishAction;
 
     // return-to-neutral tracking
@@ -76,6 +81,8 @@ public class playerKetchupScript : MonoBehaviour
     void Awake()
     {
         sound = GetComponent<AudioSource>();
+
+        if (scoreText != null) scoreText.gameObject.SetActive(false);
 
         finishAction = InputSystem.actions.FindAction("Complete");
         finishAction.Enable();
@@ -287,6 +294,13 @@ public class playerKetchupScript : MonoBehaviour
         if (finishAction.WasPerformedThisFrame())
         {
             sound.PlayOneShot(Ding);
+            
+            if (ketchupScoreManager.Instance != null && !isGameFinished)
+            {
+                scoreAccuracy = ketchupScoreManager.Instance.GetScoreAccuracy();
+                popupTextResult();
+                isGameFinished = true;
+            }
         }
     }
 
@@ -354,5 +368,51 @@ public class playerKetchupScript : MonoBehaviour
             if (qEReturnTriggered)
                 qEDownTime = -1f;
         }
+    }
+
+    public void popupTextResult()
+    {
+        string message;
+        Color color;
+
+        if (scoreAccuracy <= 0.50f)
+        {
+            message = "Good";
+            color = Color.blue;
+        }
+        else if (scoreAccuracy <= 0.70f)
+        {
+            message = "Great!";
+            color = Color.green;
+        }
+        else
+        {
+            message = "Pawfect!";
+            color = Color.yellow;
+        }
+        if (scoreText != null)
+        {
+            scoreText.text = message;
+            scoreText.color = color;
+            scoreText.gameObject.SetActive(true);
+            StopAllCoroutines();
+            StartCoroutine(PopupAnimation(scoreText.transform));
+        }
+    }
+
+    IEnumerator PopupAnimation(Transform targetTransform)
+    {
+        targetTransform.localScale = Vector3.zero;
+        float duration = 0.5f;
+        float elapsed = 0f;
+
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            float t = elapsed / duration;
+            targetTransform.localScale = Vector3.Lerp(Vector3.zero, Vector3.one/2.5f, t);
+            yield return null;
+        }
+        targetTransform.localScale = Vector3.one/2.5f;
     }
 }
