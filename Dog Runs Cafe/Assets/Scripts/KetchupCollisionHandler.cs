@@ -1,4 +1,3 @@
-using NUnit.Framework;
 using System.Runtime.CompilerServices;
 using UnityEngine;
 
@@ -11,6 +10,16 @@ public class KetchupCollisionHandler : MonoBehaviour
         if (other.CompareTag("Plate") || other.CompareTag("Omelette"))
         {
             bool isCorrect = other.CompareTag("Omelette");
+
+            if (other.CompareTag("Omelette"))
+            {
+                OmeletteController omelette = other.GetComponent<OmeletteController>();
+                if (omelette != null)
+                {
+                    omelette.ApplyKetchup();
+                }
+            }
+            
             if (ketchupScoreManager.Instance != null)
             {
                 ketchupScoreManager.Instance.AddHit(isCorrect);
@@ -22,7 +31,13 @@ public class KetchupCollisionHandler : MonoBehaviour
 
             if (ketchupSplash != null)
             {
-                Instantiate(ketchupSplash, spawnPosition, Quaternion.identity);
+                GameObject ketchup = Instantiate(ketchupSplash, spawnPosition, Quaternion.identity);
+
+                KetchupLevelManager levelManager = FindFirstObjectByType<KetchupLevelManager>();
+                if (levelManager != null)
+                {
+                    levelManager.RegisterSpawnedObject(ketchup);
+                }
             }
         }
     }

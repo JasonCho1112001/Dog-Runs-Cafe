@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 7143610577759367341}
   - component: {fileID: 7050136162356080818}
   - component: {fileID: 9050246589474864340}
+  - component: {fileID: 8620262312312154918}
   m_Layer: 0
   m_Name: Omelette
   m_TagString: Omelette
@@ -112,3 +113,16 @@ MeshCollider:
   m_Convex: 1
   m_CookingOptions: 30
   m_Mesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!114 &8620262312312154918
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5726142166546226042}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3d5a04f040c72eb4e9815063e365e257, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::OmeletteController
+  hasKetchup: 0

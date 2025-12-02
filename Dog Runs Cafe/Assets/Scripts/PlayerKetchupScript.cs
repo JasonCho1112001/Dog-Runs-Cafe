@@ -69,16 +69,13 @@ public class playerKetchupScript : MonoBehaviour
     private AudioSource sound;
     public AudioClip Ding;
     public TextMeshPro scoreText;
-    float leftDownTime = -1f;
     float scoreAccuracy = 0f;
-    bool holdStarted = false;
     bool isGameFinished = false;
     InputAction finishAction;
 
     // return-to-neutral tracking
     public bool returningToNeutral = false;
     Quaternion returnTargetRotation = Quaternion.identity;
-    Vector3 returnTargetPosition = Vector3.zero; // kept for compatibility but NOT used in return
 
     void Awake()
     {
@@ -249,27 +246,6 @@ public class playerKetchupScript : MonoBehaviour
         rb.angularVelocity = Vector3.zero;
     }
 
-    void ToggleLockedRotation(bool isLocked)
-    {
-        if (rb == null) return;
-
-        if (isLocked)
-        {
-            // Prevent the pivot from rotating while still allowing translation
-            rb.constraints =
-            RigidbodyConstraints.FreezeRotation |
-            RigidbodyConstraints.FreezePositionY;
-        }
-        else
-        {
-            // During Rotate: prevent translation but allow rotation on all axes (Q/E will roll).
-            rb.constraints =
-                RigidbodyConstraints.FreezePositionX |
-                RigidbodyConstraints.FreezePositionY |
-                RigidbodyConstraints.FreezePositionZ;
-        }
-    }
-
     void HandleKetchupSqueeze() 
     {
         var mouse = Mouse.current;
@@ -326,11 +302,6 @@ public class playerKetchupScript : MonoBehaviour
         bool ePressed = Keyboard.current.eKey.isPressed;
         bool eitherPressed = qPressed || ePressed;
 
-        // qEDownTime state machine:
-        // -1f = idle (no hold, no pending)
-        // -2f = currently holding (keys down)
-        // >=0 = pending timer start time (after release)
-
         if (eitherPressed)
         {
             // If a pending return was running, cancel it and mark as holding again.
@@ -383,7 +354,12 @@ public class playerKetchupScript : MonoBehaviour
         string message;
         Color color;
 
-        if (scoreAccuracy <= 0.50f)
+        if (!KetchupLevelManager.Instance.AreAllOmelettesHit())
+        {
+            message = "Fail";
+            color = Color.red;
+        }
+        else if (scoreAccuracy <= 0.50f)
         {
             message = "Good";
             color = Color.blue;
@@ -422,5 +398,11 @@ public class playerKetchupScript : MonoBehaviour
             yield return null;
         }
         targetTransform.localScale = Vector3.one/2.5f;
+    }
+
+    public void ResetScoreText()
+    {
+        scoreText.gameObject.SetActive(false);
+        isGameFinished = false;
     }
 }
