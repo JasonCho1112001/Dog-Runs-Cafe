@@ -42,7 +42,30 @@ public class KetchupLevelManager : MonoBehaviour
 
     void Start()
     {
-        LoadLevel(1);
+        // Ensure standalone start loads currentLevel (defaults to 1)
+        LoadLevel(currentLevel);
+    }
+
+    // Called by gameManager via SendMessage("SetDifficultyLevel", difficulty)
+    // Accepts difficulty 1,2,3 and loads the corresponding local level.
+    public void SetDifficultyLevel(int difficulty)
+    {
+        difficulty = Mathf.Clamp(difficulty, 1, 3);
+        LoadLevel(difficulty);
+    }
+
+    // Optional ResetLevel hook used by gameManager; reload same difficulty
+    public void ResetLevel()
+    {
+        LoadLevel(currentLevel);
+    }
+
+    // Optional hook invoked by gameManager when the level is actively started.
+    // Keeps compatibility with gameManagerScript which calls OnLevelStart().
+    public void OnLevelStart()
+    {
+        // Ensure the level is initialized / reset when the game manager starts it.
+        ResetLevel();
     }
 
     void Update()
@@ -64,29 +87,60 @@ public class KetchupLevelManager : MonoBehaviour
     {
         isTransitioning = true;
 
-        yield return new WaitForSeconds(5f);
+        yield return new WaitForSeconds(3f);
 
         CleanupSpawnedObjects();
         uiResetHandler.ResetScoreText();
-        LoadLevel(levelIndex);
+        //LoadLevel(levelIndex);
+        var gm = FindObjectOfType<gameManagerScript>();
+        if (gm != null)
+        {
+            gm.OnLevelPassed("Task Completed!", 2.0f);
+        }
         isTransitioning = false;
     }
 
-    void LoadLevel(int levelIndex)
+    IEnumerator DelayedOnLevelPassed(gameManagerScript gm)
     {
+        // wait 2 seconds before telling the global manager (keeps timing consistent)
+        yield return new WaitForSeconds(2f);
+
+        // prefer the singleton instance (more reliable than FindObjectOfType)
+        if (gameManagerScript.Instance != null)
+        {
+            gameManagerScript.Instance.OnLevelPassed("Task Completed!", 2f);
+        }
+        else if (gm != null)
+        {
+            gm.OnLevelPassed("Task Completed!", 2f);
+        }
+        else
+        {
+            // fallback - try FindObjectOfType once more and call it
+            var found = FindObjectOfType<gameManagerScript>();
+            if (found != null) found.OnLevelPassed("Task Completed!", 2f);
+        }
+    }
+
+    // LoadLevel now takes the difficulty (1..3) coming from gameManager's difficulty selection.
+    // Internally it's the same mapping used previously: difficulty 1 -> local level1, etc.
+    void LoadLevel(int difficulty)
+    {
+        difficulty = Mathf.Clamp(difficulty, 1, 3);
+
         SetLevelActive(level1Plates, false);
         SetLevelActive(level2Plates, false);
         SetLevelActive(level3Plates, false);
 
-        // Activate target
-        switch (levelIndex)
+        // Activate the matching difficulty level
+        switch (difficulty)
         {
             case 1: SetLevelActive(level1Plates, true); break;
             case 2: SetLevelActive(level2Plates, true); break;
             case 3: SetLevelActive(level3Plates, true); break;
         }
 
-        currentLevel = levelIndex;
+        currentLevel = difficulty;
         scoreManager.allHits.Clear();
 
         activeOmelettes.Clear();

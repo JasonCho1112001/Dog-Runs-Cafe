@@ -157,3 +157,5 @@ MonoBehaviour:
   arriveThreshold: 0.15
   isFulfilled: 0
   pickupRadius: 6
+  returnSpeed: 8
+  returnDelay: 2

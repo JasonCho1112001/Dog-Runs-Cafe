@@ -112,6 +112,23 @@ public class mouthGrabberScript : MonoBehaviour
         }
     }
 
+    // Helper used by other scripts to ask this mouth to release a specific rigidbody if it's holding it.
+    public void ReleaseIfHolding(Rigidbody rbToRelease)
+    {
+        if (rbToRelease == null) return;
+        if (grabbedRb == rbToRelease)
+        {
+            // call existing Release() to clean up joint and internal state
+            Release();
+        }
+    }
+
+    // Optional helper to query whether this mouth is holding a specific rigidbody.
+    public bool IsHoldingRigidbody(Rigidbody rbToCheck)
+    {
+        return grabbedRb == rbToCheck;
+    }
+
     // Called by Unity when a joint on this GameObject breaks
     void OnJointBreak(float breakForce)
     {

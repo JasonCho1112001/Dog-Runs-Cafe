@@ -57,6 +57,38 @@ public class paymentMethodGameManagerScript : MonoBehaviour
     // map spawned customer -> assigned waiting point index
     Dictionary<customerScript, int> waitingAssignments = new Dictionary<customerScript, int>();
 
+    // how many customers must be served to win this level (set from difficulty)
+    int remainingToServe = 0;
+    // flag to prevent multiple win triggers
+    bool levelCompleted = false;
+
+    // helper: whether any active customer slots remain
+    bool AnyActiveCustomers()
+    {
+        if (customers == null) return false;
+        foreach (var c in customers) if (c != null) return true;
+        return false;
+    }
+    // call after a customer is served/removed
+    void CheckForLevelWin()
+    {
+        if (levelCompleted) return;
+        if (remainingToServe > 0) return;
+        // ensure no active customers remain in the list
+        if (AnyActiveCustomers()) return;
+
+        levelCompleted = true;
+        levelActive = false;
+        if (spawnRoutine != null) { StopCoroutine(spawnRoutine); spawnRoutine = null; }
+
+        Debug.Log("All customers served -> level complete.");
+        var gm = FindObjectOfType<gameManagerScript>();
+        if (gm != null)
+        {
+            gm.OnLevelPassed("Task Completed!", 2.0f);
+        }
+    }
+
     void Awake()
     {
         ApplyDifficulty();
@@ -72,14 +104,39 @@ public class paymentMethodGameManagerScript : MonoBehaviour
         EnsureWaitingPoints();
     }
 
+    // Support the mini-game hopping system: Start level when this component / GameObject becomes enabled.
+    void OnEnable()
+    {
+        StartLevelIfReady();
+    }
+
     void Start()
     {
-        // start level timer and spawn loop based on difficulty
+        // Start level logic (also called from OnEnable so manager works when GameObject is toggled by gameManager)
+        StartLevelIfReady();
+    }
+
+    // minimal helper to start the level / spawn loop when the manager becomes active
+    void StartLevelIfReady()
+    {
+        Debug.Log($"GM StartLevelIfReady: remainingTime={remainingTime}, spawnPoint={(spawnPoint!=null)}, customer={(customer!=null)}, spawnInterval={spawnInterval}");
         if (remainingTime > 0f)
         {
             levelActive = true;
-            if (spawnPoint != null && customer != null && spawnInterval > 0f)
+            // initialize remainingToServe from configured customerListLength (set by ApplyDifficulty)
+            remainingToServe = Mathf.Max(0, customerListLength);
+            levelCompleted = false;
+            if (spawnPoint != null && customer != null && spawnInterval > 0f && spawnRoutine == null)
+            {
+                Debug.Log("Starting SpawnLoop coroutine");
+                // spawn one immediately so the level has at least one customer without waiting
+                TrySpawnCustomer();
                 spawnRoutine = StartCoroutine(SpawnLoop());
+            }
+            else
+            {
+                Debug.LogWarning("SpawnLoop NOT started: check spawnPoint, customer prefab, spawnInterval > 0 or spawnRoutine already running");
+            }
         }
     }
 
@@ -139,9 +196,20 @@ public class paymentMethodGameManagerScript : MonoBehaviour
             spawnRoutine = null;
         }
 
-        // optional: you can decide what happens when time expires.
-        // Default: stop new spawns but let existing customers be served.
         Debug.Log($"Level time expired for difficulty {difficulty}. Remaining customers must still be served.");
+
+        // Notify game manager to handle life loss / transition / restart sequence.
+        var gm = FindObjectOfType<gameManagerScript>();
+        if (gm != null)
+        {
+            // Use a short message and delay; gameManager handles restarts.
+            gm.OnPlayerRanOutOfTimeRestartLevel("You lost a life! Retrying current level...", 2.0f);
+        }
+        else
+        {
+            // fallback: restart current scene immediately if no game manager present
+            UnityEngine.SceneManagement.SceneManager.LoadScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex);
+        }
     }
 
     void EnsureListCapacity()
@@ -174,6 +242,7 @@ public class paymentMethodGameManagerScript : MonoBehaviour
 
     IEnumerator SpawnLoop()
     {
+        Debug.Log("SpawnLoop entered");
         while (true)
         {
             yield return new WaitForSeconds(spawnInterval);
@@ -183,13 +252,25 @@ public class paymentMethodGameManagerScript : MonoBehaviour
 
     void TrySpawnCustomer()
     {
-        if (customer == null || spawnPoint == null) return;
-        if (IsFull()) return;
+        Debug.Log($"TrySpawnCustomer: spawnPoint={(spawnPoint!=null)}, customer={(customer!=null)}, IsFull={IsFull()}, customerCount={customers?.Count}");
+        if (customer == null || spawnPoint == null) 
+        {
+            Debug.LogWarning("TrySpawnCustomer aborted: missing customer prefab or spawnPoint");
+            return;
+        }
+        if (IsFull()) 
+        {
+            Debug.Log("TrySpawnCustomer aborted: customer list full");
+            return;
+        }
 
         int freeWaitingIndex = FindFirstFreeWaitingPointIndex();
         if (freeWaitingIndex == -1) return; // no free waiting point available
 
-        GameObject go = Instantiate(customer, spawnPoint.position, spawnPoint.rotation);
+        // instantiate as child of the game manager so hierarchy stays organized
+        GameObject go = Instantiate(customer, spawnPoint.position, spawnPoint.rotation, this.transform);
+        // ensure it's active even if the prefab was mistakenly saved inactive
+        if (!go.activeSelf) go.SetActive(true);
         var cust = go.GetComponent<customerScript>();
         if (cust == null)
         {
@@ -255,7 +336,14 @@ public class paymentMethodGameManagerScript : MonoBehaviour
             waitingAssignments.Remove(c);
         }
 
+        // decrement remaining target count when a customer is served
+        if (remainingToServe > 0)
+            remainingToServe = Mathf.Max(0, remainingToServe - 1);
+
         RemoveCustomer(c);
+
+        // check whether level has been completed
+        CheckForLevelWin();
     }
 
     // trigger all current customers to walk to exit (developer shortcut)
@@ -290,15 +378,6 @@ public class paymentMethodGameManagerScript : MonoBehaviour
     public bool RemoveCustomer(customerScript c)
     {
         if (c == null) return false;
-
-        // also free waiting point if mapping exists
-        if (waitingAssignments.TryGetValue(c, out int idx))
-        {
-            if (waitingPointOccupied != null && idx >= 0 && idx < waitingPointOccupied.Length)
-                waitingPointOccupied[idx] = false;
-            waitingAssignments.Remove(c);
-        }
-
         for (int i = 0; i < customers.Count; i++)
         {
             if (customers[i] == c)
@@ -310,31 +389,14 @@ public class paymentMethodGameManagerScript : MonoBehaviour
         return false;
     }
 
-    // Get customer at index (may be null). Returns null on invalid index.
-    public customerScript GetCustomerAt(int index)
-    {
-        if (index < 0 || index >= customers.Count) return null;
-        return customers[index];
-    }
-
-    // Number of occupied slots
-    public int OccupiedCount()
-    {
-        int n = 0;
-        for (int i = 0; i < customers.Count; i++)
-            if (customers[i] != null) n++;
-        return n;
-    }
-
-    // Whether the list is full (no null slots)
+    // Check if the customer list is full (no null slots)
     public bool IsFull()
     {
-        return OccupiedCount() >= customers.Count;
-    }
-
-    // Whether the list is empty (all null)
-    public bool IsEmpty()
-    {
-        return OccupiedCount() == 0;
+        if (customers == null) return true;
+        for (int i = 0; i < customers.Count; i++)
+        {
+            if (customers[i] == null) return false;
+        }
+        return true;
     }
 }
