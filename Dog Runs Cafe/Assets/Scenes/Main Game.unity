@@ -2074,6 +2074,11 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 457936841}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!1 &501613358 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 6502918101018806577, guid: e3ae0bee7a3779842a08dbb4ea4865fe, type: 3}
+  m_PrefabInstance: {fileID: 1958241678}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &502938808
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -2159,15 +2164,15 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 2021059549296565464, guid: e3ae0bee7a3779842a08dbb4ea4865fe, type: 3}
       propertyPath: m_Center.y
-      value: -0.044
+      value: -0.04
       objectReference: {fileID: 0}
     - target: {fileID: 6502918101018806577, guid: e3ae0bee7a3779842a08dbb4ea4865fe, type: 3}
       propertyPath: m_Name
-      value: Mug (3)
+      value: Mug2
       objectReference: {fileID: 0}
     - target: {fileID: 8001401790674587017, guid: e3ae0bee7a3779842a08dbb4ea4865fe, type: 3}
       propertyPath: m_LocalPosition.x
-      value: -2.06
+      value: -3.06
       objectReference: {fileID: 0}
     - target: {fileID: 8001401790674587017, guid: e3ae0bee7a3779842a08dbb4ea4865fe, type: 3}
       propertyPath: m_LocalPosition.y
@@ -2175,7 +2180,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8001401790674587017, guid: e3ae0bee7a3779842a08dbb4ea4865fe, type: 3}
       propertyPath: m_LocalPosition.z
-      value: -5.65
+      value: -6.1
       objectReference: {fileID: 0}
     - target: {fileID: 8001401790674587017, guid: e3ae0bee7a3779842a08dbb4ea4865fe, type: 3}
       propertyPath: m_LocalRotation.w
@@ -2205,6 +2210,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 8680717581434562854, guid: e3ae0bee7a3779842a08dbb4ea4865fe, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 21dca6f6fe6a41d45a0bdd42f1abe070, type: 2}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -3554,15 +3563,15 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 2021059549296565464, guid: e3ae0bee7a3779842a08dbb4ea4865fe, type: 3}
       propertyPath: m_Center.y
-      value: -0.044
+      value: -0.04
       objectReference: {fileID: 0}
     - target: {fileID: 6502918101018806577, guid: e3ae0bee7a3779842a08dbb4ea4865fe, type: 3}
       propertyPath: m_Name
-      value: Mug (2)
+      value: Mug3
       objectReference: {fileID: 0}
     - target: {fileID: 8001401790674587017, guid: e3ae0bee7a3779842a08dbb4ea4865fe, type: 3}
       propertyPath: m_LocalPosition.x
-      value: -0.8
+      value: -1.94
       objectReference: {fileID: 0}
     - target: {fileID: 8001401790674587017, guid: e3ae0bee7a3779842a08dbb4ea4865fe, type: 3}
       propertyPath: m_LocalPosition.y
@@ -3600,6 +3609,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 8680717581434562854, guid: e3ae0bee7a3779842a08dbb4ea4865fe, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 21dca6f6fe6a41d45a0bdd42f1abe070, type: 2}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -5007,15 +5020,15 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 2021059549296565464, guid: e3ae0bee7a3779842a08dbb4ea4865fe, type: 3}
       propertyPath: m_Center.y
-      value: -0.044
+      value: -0.04
       objectReference: {fileID: 0}
     - target: {fileID: 6502918101018806577, guid: e3ae0bee7a3779842a08dbb4ea4865fe, type: 3}
       propertyPath: m_Name
-      value: Mug (4)
+      value: Mug4
       objectReference: {fileID: 0}
     - target: {fileID: 8001401790674587017, guid: e3ae0bee7a3779842a08dbb4ea4865fe, type: 3}
       propertyPath: m_LocalPosition.x
-      value: -3.92
+      value: -3.27
       objectReference: {fileID: 0}
     - target: {fileID: 8001401790674587017, guid: e3ae0bee7a3779842a08dbb4ea4865fe, type: 3}
       propertyPath: m_LocalPosition.y
@@ -5053,6 +5066,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 8680717581434562854, guid: e3ae0bee7a3779842a08dbb4ea4865fe, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 21dca6f6fe6a41d45a0bdd42f1abe070, type: 2}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -5132,22 +5149,22 @@ ConfigurableJoint:
     spring: 0
     damper: 0
   m_LowAngularXLimit:
-    limit: 10
+    limit: 15
     bounciness: 0
     contactDistance: 0
   m_HighAngularXLimit:
-    limit: 10
+    limit: 15
     bounciness: 0
     contactDistance: 0
   m_AngularYZLimitSpring:
     spring: 0
     damper: 0
   m_AngularYLimit:
-    limit: 10
+    limit: 15
     bounciness: 0
     contactDistance: 0
   m_AngularZLimit:
-    limit: 10
+    limit: 15
     bounciness: 0
     contactDistance: 0
   m_TargetPosition: {x: 0, y: 0, z: 0}
@@ -5389,9 +5406,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a0acb5ae3b21cb94cbf862a720eecee7, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GameTimer
-  surviveTime: 10
-  mugPrefab: {fileID: 6502918101018806577, guid: e3ae0bee7a3779842a08dbb4ea4865fe, type: 3}
-  spawnArea: {fileID: 636589081}
+  surviveTime: 5
+  difficulty: 2
+  mugs:
+  - {fileID: 501613358}
+  - {fileID: 1613031832}
+  - {fileID: 2095136481}
+  - {fileID: 1989521648}
 --- !u!1 &1433003664
 GameObject:
   m_ObjectHideFlags: 0
@@ -5834,6 +5855,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5114a4b3a3071ac4cb221866de4883a9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: '::'
+--- !u!1 &1613031832 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 6502918101018806577, guid: e3ae0bee7a3779842a08dbb4ea4865fe, type: 3}
+  m_PrefabInstance: {fileID: 506030039}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &1619142075
 GameObject:
   m_ObjectHideFlags: 0
@@ -7044,15 +7070,15 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 2021059549296565464, guid: e3ae0bee7a3779842a08dbb4ea4865fe, type: 3}
       propertyPath: m_Center.y
-      value: -0.044
+      value: -0.04
       objectReference: {fileID: 0}
     - target: {fileID: 6502918101018806577, guid: e3ae0bee7a3779842a08dbb4ea4865fe, type: 3}
       propertyPath: m_Name
-      value: Mug (1)
+      value: Mug1
       objectReference: {fileID: 0}
     - target: {fileID: 8001401790674587017, guid: e3ae0bee7a3779842a08dbb4ea4865fe, type: 3}
       propertyPath: m_LocalPosition.x
-      value: -0.46606994
+      value: -1.88
       objectReference: {fileID: 0}
     - target: {fileID: 8001401790674587017, guid: e3ae0bee7a3779842a08dbb4ea4865fe, type: 3}
       propertyPath: m_LocalPosition.y
@@ -7090,6 +7116,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 8680717581434562854, guid: e3ae0bee7a3779842a08dbb4ea4865fe, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 21dca6f6fe6a41d45a0bdd42f1abe070, type: 2}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -7099,6 +7129,11 @@ PrefabInstance:
 Transform:
   m_CorrespondingSourceObject: {fileID: 8001401790674587017, guid: e3ae0bee7a3779842a08dbb4ea4865fe, type: 3}
   m_PrefabInstance: {fileID: 1958241678}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &1989521648 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 6502918101018806577, guid: e3ae0bee7a3779842a08dbb4ea4865fe, type: 3}
+  m_PrefabInstance: {fileID: 1387372127}
   m_PrefabAsset: {fileID: 0}
 --- !u!4 &1998520844 stripped
 Transform:
@@ -7313,6 +7348,11 @@ Transform:
   - {fileID: 1734346137}
   m_Father: {fileID: 2114525243}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &2095136481 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 6502918101018806577, guid: e3ae0bee7a3779842a08dbb4ea4865fe, type: 3}
+  m_PrefabInstance: {fileID: 871649255}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &2100650891
 GameObject:
   m_ObjectHideFlags: 0

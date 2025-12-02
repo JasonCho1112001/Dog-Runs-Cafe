@@ -1,8 +1,16 @@
 using UnityEngine;
+using UnityEngine.SceneManagement;
+
+public enum DifficultyLevel
+{
+    Easy,
+    Medium,
+    Hard
+}
 
 public class GameTimer : MonoBehaviour
 {
-    // Timer Constants
+    [Header("Timer Settings")]
     public float surviveTime = 10f;
 
     private float timer = 0f;
@@ -11,10 +19,28 @@ public class GameTimer : MonoBehaviour
     private float printInterval = 1f;
     private float nextPrintTime = 1f;
 
-    // Mug Spawning
-    public GameObject mugPrefab;      
-    public BoxCollider spawnArea;     
-    private bool hasSpawnedMug = false;
+    [Header("Difficulty Settings")]
+    public DifficultyLevel difficulty = DifficultyLevel.Easy;
+
+    private DifficultyLevel[] difficultyOrder =
+    {
+        DifficultyLevel.Easy,
+        DifficultyLevel.Medium,
+        DifficultyLevel.Hard
+    };
+
+    private int difficultyIndex = 0;
+
+    [Header("Mugs in Scene (Assign 4 mugs here)")]
+    public GameObject[] mugs;   // drag your 4 mugs into the inspector
+
+
+    void Start()
+    {
+        int mugCount = GetMugCount();
+        ActivateMugsForDifficulty(mugCount);
+    }
+
 
     void Update()
     {
@@ -22,19 +48,11 @@ public class GameTimer : MonoBehaviour
 
         timer += Time.deltaTime;
 
-        // Print timer every second
+        // Print timer every 1 second
         if (timer >= nextPrintTime)
         {
             Debug.Log("Timer: " + Mathf.FloorToInt(timer) + "s");
             nextPrintTime += printInterval;
-        }
-
-        // Spawn second mug at halfway point
-        if (!hasSpawnedMug && timer >= surviveTime / 2f)
-        {
-            Debug.Log("Attempting random mug spawn...");
-            SpawnRandomMug();
-            hasSpawnedMug = true;
         }
 
         // Win condition
@@ -44,56 +62,68 @@ public class GameTimer : MonoBehaviour
         }
     }
 
+
+    // Difficulty → Mug Count Logic
+    int GetMugCount()
+    {
+        switch (difficulty)
+        {
+            case DifficultyLevel.Easy:   return 1;
+            case DifficultyLevel.Medium: return 2;
+            case DifficultyLevel.Hard:   return 4;
+            default: return 1;
+        }
+    }
+
+    // Activate only the mugs needed
+    void ActivateMugsForDifficulty(int count)
+    {
+        for (int i = 0; i < mugs.Length; i++)
+        {
+            mugs[i].SetActive(i < count);
+        }
+    }
+
+
+    // Lose Condition (Spill)
     public void Lose()
     {
         if (gameOver) return;
 
         gameOver = true;
-        Debug.Log("GAME OVER — Mug or ball touched the ground.");
+        Debug.Log("You spilled! Retrying same difficulty...");
+
+        ReloadScene();   // retry same difficulty
     }
 
-    private void Win()
+
+    // Win Condition
+    void Win()
     {
         gameOver = true;
-        Debug.Log("YOU SURVIVED 10 SECONDS!!!");
+        Debug.Log("YOU WON THIS LEVEL!");
+
+        AdvanceDifficulty();
+        //ReloadScene();   // load next difficulty
     }
 
-    // Spawning Logic
-    void SpawnRandomMug()
+    // Cycle to next difficulty
+    void AdvanceDifficulty()
     {
-        Vector3 pos = GetRandomPointInSpawnArea();
+        difficultyIndex++;
 
-        float mugRadius = 0.5f;   // Adjust based on your mug size
-        int maxAttempts = 20;
-        int attempts = 0;
+        if (difficultyIndex >= difficultyOrder.Length)
+            difficultyIndex = 0;   // loop back to easy
 
-        // Ensure we don't overlap the first mug
-        while (Physics.CheckSphere(pos, mugRadius))
-        {
-            pos = GetRandomPointInSpawnArea();
-            attempts++;
+        difficulty = difficultyOrder[difficultyIndex];
 
-            if (attempts > maxAttempts)
-            {
-                Debug.LogWarning("⚠ Could not find safe spawn point for mug!");
-                return;
-            }
-        }
-
-        Instantiate(mugPrefab, pos, Quaternion.identity);
-        Debug.Log("Spawned second mug at: " + pos);
+        Debug.Log("➡️ Next Difficulty: " + difficulty);
     }
 
-    Vector3 GetRandomPointInSpawnArea()
+
+    // Scene Reload
+    void ReloadScene()
     {
-        Vector3 center = spawnArea.bounds.center;
-        Vector3 size = spawnArea.bounds.size;
-
-        float x = Random.Range(center.x - size.x / 2f, center.x + size.x / 2f);
-        float z = Random.Range(center.z - size.z / 2f, center.z + size.z / 2f);
-
-        float y = center.y;
-
-        return new Vector3(x, y, z);
+        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
     }
 }
