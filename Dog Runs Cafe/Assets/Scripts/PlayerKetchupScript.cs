@@ -1,8 +1,10 @@
 using System.Collections;
 using TMPro;
-using UnityEditor.Timeline.Actions;
+// using UnityEditor.Timeline.Actions; // removed - UnityEditor namespaces shouldn't be in runtime scripts
 using UnityEngine;
 using UnityEngine.InputSystem;
+
+// NOTE: removed any UnityEditor.* using (e.g. UnityEditor.Timeline) so this script compiles in builds.
 
 public class playerKetchupScript : MonoBehaviour
 {
@@ -85,12 +87,10 @@ public class playerKetchupScript : MonoBehaviour
         if (scoreText != null) scoreText.gameObject.SetActive(false);
 
         finishAction = InputSystem.actions.FindAction("Complete");
-        finishAction.Enable();
+        if (finishAction != null) finishAction.Enable();
 
         if (rb == null)
             rb = GetComponent<Rigidbody>();
-
-        // ensure default rotation lock for Idle
 
         // initial reference rotation/position
         if (rb != null)
@@ -107,6 +107,14 @@ public class playerKetchupScript : MonoBehaviour
 
         // handle Q/E hold timer which triggers BeginReturnToNeutral after qEReturnDelay
         HandleQETimer();
+
+        // Developer shortcut: press F to return to neutral
+        if (Keyboard.current != null && Keyboard.current.fKey.wasPressedThisFrame)
+        {
+            BeginReturnToNeutral();
+            qEDownTime = -1f;
+            qEReturnTriggered = false;
+        }
     }
 
     void FixedUpdate()
