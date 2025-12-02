@@ -5,11 +5,18 @@ using UnityEngine.SceneManagement;
 public class gameManagerScript : MonoBehaviour
 {
 
+    public GameObject[] miniGames;
+
     void Start()
     {
         //Set Cursor to be invisible and locked at start
         Cursor.visible = false;
         Cursor.lockState = CursorLockMode.Locked;
+
+        //Disable all minigames
+        miniGames[0].SetActive(false);
+        miniGames[1].SetActive(false);
+        miniGames[2].SetActive(false);
     }
 
     void Update()
@@ -25,6 +32,28 @@ public class gameManagerScript : MonoBehaviour
         {
             SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
         }
+
+        // Press 1,2,3... to load mini-games
+
+        if (Keyboard.current != null && Keyboard.current.digit1Key.wasPressedThisFrame)
+        {
+            miniGames[0].SetActive(true);
+            miniGames[1].SetActive(false);
+            miniGames[2].SetActive(false);
+        }
+        else if (Keyboard.current != null && Keyboard.current.digit2Key.wasPressedThisFrame)
+        {
+            miniGames[0].SetActive(false);
+            miniGames[1].SetActive(true);
+            miniGames[2].SetActive(false);
+        }
+        else if (Keyboard.current != null && Keyboard.current.digit3Key.wasPressedThisFrame)
+        {
+            miniGames[0].SetActive(false);
+            miniGames[1].SetActive(false);
+            miniGames[2].SetActive(true);
+        }
+
 
     }
 
