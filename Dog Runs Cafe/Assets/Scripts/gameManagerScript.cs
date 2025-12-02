@@ -10,12 +10,16 @@ public class gameManagerScript : MonoBehaviour
     void Start()
     {
         //Set Cursor to be invisible and locked at start
-        Cursor.visible = false;
-        Cursor.lockState = CursorLockMode.Locked;
+        if (SceneManager.GetActiveScene().name == "Main Game")
+        {
+            Cursor.visible = false;
+            Cursor.lockState = CursorLockMode.Locked;
+        }
+        
 
-        //Disable all minigames
+        //Disable all minigames except 2nd one at start
         miniGames[0].SetActive(false);
-        miniGames[1].SetActive(false);
+        miniGames[1].SetActive(true);
         miniGames[2].SetActive(false);
     }
 
@@ -33,8 +37,7 @@ public class gameManagerScript : MonoBehaviour
             SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
         }
 
-        // Press 1,2,3... to load mini-games
-
+        // Press 1,2,3... to load mini-games (I know this code is spaghetti)
         if (Keyboard.current != null && Keyboard.current.digit1Key.wasPressedThisFrame)
         {
             miniGames[0].SetActive(true);
@@ -61,5 +64,15 @@ public class gameManagerScript : MonoBehaviour
     {
         Cursor.visible = !Cursor.visible;
         Cursor.lockState = Cursor.visible ? CursorLockMode.None : CursorLockMode.Locked;
+    }
+
+    public void StartGame()
+    {
+        SceneManager.LoadScene("Main Game");
+    }
+
+    public void LoadScene(string sceneName)
+    {
+        SceneManager.LoadScene(sceneName);
     }
 }

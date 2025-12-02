@@ -5,6 +5,27 @@ using UnityEngine.InputSystem;
 
 public class paymentMethodGameManagerScript : MonoBehaviour
 {
+    public enum DifficultyLevel { Level1 = 1, Level2 = 2, Level3 = 3 }
+
+    [Header("Difficulty")]
+    [Tooltip("Select game difficulty")]
+    public DifficultyLevel difficulty = DifficultyLevel.Level1;
+
+    [Tooltip("Seconds remaining in the current level (runtime)")]
+    public float remainingTime = 0f;
+
+    [Tooltip("Whether the level is currently active (timer running / spawning)")]
+    public bool levelActive = false;
+
+    // Difficulty presets (editable if you want different values in inspector)
+    [Header("Difficulty Presets (editable)")]
+    public int level1CustomerCount = 1;
+    public float level1Time = 15f;
+    public int level2CustomerCount = 3;
+    public float level2Time = 25f;
+    public int level3CustomerCount = 6;
+    public float level3Time = 35f;
+
     [Header("Simple Customer List")]
     [Tooltip("Configurable length of the customer list (capacity).")]
     public int customerListLength = 5;
@@ -38,20 +59,28 @@ public class paymentMethodGameManagerScript : MonoBehaviour
 
     void Awake()
     {
+        ApplyDifficulty();
         EnsureListCapacity();
         EnsureWaitingPoints();
     }
 
     void OnValidate()
     {
+        // keep editor preview consistent when changing difficulty in inspector
+        ApplyDifficulty();
         EnsureListCapacity();
         EnsureWaitingPoints();
     }
 
     void Start()
     {
-        if (spawnPoint != null && customer != null && spawnInterval > 0f)
-            spawnRoutine = StartCoroutine(SpawnLoop());
+        // start level timer and spawn loop based on difficulty
+        if (remainingTime > 0f)
+        {
+            levelActive = true;
+            if (spawnPoint != null && customer != null && spawnInterval > 0f)
+                spawnRoutine = StartCoroutine(SpawnLoop());
+        }
     }
 
     void Update()
@@ -62,12 +91,57 @@ public class paymentMethodGameManagerScript : MonoBehaviour
         {
             SatisfyAllCustomers();
         }
+
+        // countdown level timer
+        if (levelActive)
+        {
+            remainingTime -= Time.deltaTime;
+            if (remainingTime <= 0f)
+            {
+                remainingTime = 0f;
+                levelActive = false;
+                OnLevelTimeExpired();
+            }
+        }
     }
 
     void OnDisable()
     {
         if (spawnRoutine != null) StopCoroutine(spawnRoutine);
         spawnRoutine = null;
+    }
+
+    void ApplyDifficulty()
+    {
+        switch (difficulty)
+        {
+            case DifficultyLevel.Level1:
+                customerListLength = Mathf.Max(1, level1CustomerCount);
+                remainingTime = Mathf.Max(0f, level1Time);
+                break;
+            case DifficultyLevel.Level2:
+                customerListLength = Mathf.Max(1, level2CustomerCount);
+                remainingTime = Mathf.Max(0f, level2Time);
+                break;
+            case DifficultyLevel.Level3:
+                customerListLength = Mathf.Max(1, level3CustomerCount);
+                remainingTime = Mathf.Max(0f, level3Time);
+                break;
+        }
+    }
+
+    void OnLevelTimeExpired()
+    {
+        // stop spawning new customers
+        if (spawnRoutine != null)
+        {
+            StopCoroutine(spawnRoutine);
+            spawnRoutine = null;
+        }
+
+        // optional: you can decide what happens when time expires.
+        // Default: stop new spawns but let existing customers be served.
+        Debug.Log($"Level time expired for difficulty {difficulty}. Remaining customers must still be served.");
     }
 
     void EnsureListCapacity()
