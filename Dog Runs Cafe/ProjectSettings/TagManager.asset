@@ -6,6 +6,9 @@ TagManager:
   tags:
   - Plate
   - Omelette
+  - Ground
+  - Tray
+  - Card
   layers:
   - Default
   - TransparentFX
@@ -14,7 +17,7 @@ TagManager:
   - Water
   - UI
   - 
-  - 
+  - Grabbable
   - 
   - 
   - 

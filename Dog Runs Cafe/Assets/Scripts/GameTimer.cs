@@ -34,13 +34,25 @@ public class GameTimer : MonoBehaviour
     [Header("Mugs in Scene (Assign 4 mugs here)")]
     public GameObject[] mugs;   // drag your 4 mugs into the inspector
 
-
     void Start()
     {
-        int mugCount = GetMugCount();
-        ActivateMugsForDifficulty(mugCount);
+        // ensure timer/reset state is clean when started standalone
+        ApplyDifficultyToScene();
+        ResetLevelState();
     }
 
+    void OnEnable()
+    {
+        // When the mini-game is activated by the global manager, ensure it resets
+        ApplyDifficultyToScene();
+        ResetLevel();
+    }
+    
+    void OnDisable()
+    {
+        // stop timer activities while disabled
+        StopAllCoroutines();
+    }
 
     void Update()
     {
@@ -62,7 +74,6 @@ public class GameTimer : MonoBehaviour
         }
     }
 
-
     // Difficulty → Mug Count Logic
     int GetMugCount()
     {
@@ -78,12 +89,25 @@ public class GameTimer : MonoBehaviour
     // Activate only the mugs needed
     void ActivateMugsForDifficulty(int count)
     {
+        if (mugs == null) return;
         for (int i = 0; i < mugs.Length; i++)
         {
-            mugs[i].SetActive(i < count);
+            if (mugs[i] != null)
+                mugs[i].SetActive(i < count);
         }
     }
 
+    // Reset individual mug if it supports a reset hook
+    void ResetMugsIfNeeded()
+    {
+        if (mugs == null) return;
+        foreach (var m in mugs)
+        {
+            if (m == null) continue;
+            // allow mug objects to reset themselves if they expose ResetMug()
+            m.SendMessage("ResetMug", SendMessageOptions.DontRequireReceiver);
+        }
+    }
 
     // Lose Condition (Spill)
     public void Lose()
@@ -93,18 +117,38 @@ public class GameTimer : MonoBehaviour
         gameOver = true;
         Debug.Log("You spilled! Retrying same difficulty...");
 
-        ReloadScene();   // retry same difficulty
+        // notify global manager to handle life loss & restart current level if available
+        var gm = gameManagerScript.Instance ?? FindObjectOfType<gameManagerScript>();
+        if (gm != null)
+        {
+            gm.OnPlayerRanOutOfTimeRestartLevel("You lost a life! Retrying current level...", 2f);
+        }
+        else
+        {
+            // fallback: retry locally
+            ReloadScene();   // retry same difficulty
+        }
     }
-
 
     // Win Condition
     void Win()
     {
+        if (gameOver) return;
         gameOver = true;
         Debug.Log("YOU WON THIS LEVEL!");
 
-        AdvanceDifficulty();
-        //ReloadScene();   // load next difficulty
+        // notify global manager to handle transition and advancing levels if available
+        var gm = gameManagerScript.Instance ?? FindObjectOfType<gameManagerScript>();
+        if (gm != null)
+        {
+            gm.OnLevelPassed("Good job!", 2f);
+        }
+        else
+        {
+            // fallback local behaviour: advance difficulty and reload scene
+            AdvanceDifficulty();
+            ReloadScene();
+        }
     }
 
     // Cycle to next difficulty
@@ -120,10 +164,67 @@ public class GameTimer : MonoBehaviour
         Debug.Log("➡️ Next Difficulty: " + difficulty);
     }
 
-
     // Scene Reload
     void ReloadScene()
     {
         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+    }
+
+    // ----- Integration API for gameManager -----
+    // gameManager will call SetDifficultyLevel(int 1..3) to configure this mini-game.
+    public void SetDifficultyLevel(int difficultyLevel)
+    {
+        // map 1->Easy, 2->Medium, 3->Hard
+        int clamped = Mathf.Clamp(difficultyLevel, 1, 3);
+        difficultyIndex = clamped - 1;
+        difficulty = difficultyOrder[difficultyIndex];
+
+        // set surviveTime per difficulty (tuned values)
+        switch (clamped)
+        {
+            case 1: surviveTime = 15f; break;
+            case 2: surviveTime = 25f; break;
+            case 3: surviveTime = 35f; break;
+            default: surviveTime = 15f; break;
+        }
+
+        // apply changes to scene and reset local state
+        ApplyDifficultyToScene();
+        ResetLevelState();
+    }
+
+    // Called by gameManager when restarting the current mini-game.
+    public void ResetLevel()
+    {
+        ResetLevelState();
+        ApplyDifficultyToScene();
+        ResetMugsIfNeeded();
+    }
+    
+    // Optional hook when the level is actively started by the game manager
+    public void OnLevelStart()
+    {
+        ResetLevel();
+    }
+    
+    // Ensure surviveTime / mugs are set according to current difficulty
+    void ApplyDifficultyToScene()
+    {
+        ActivateMugsForDifficulty(GetMugCount());
+    }
+
+    // ResetLevel is called by gameManager when restarting the current mini-game.
+    // public void ResetLevel()
+    // {
+    //     ResetLevelState();
+    //     ActivateMugsForDifficulty(GetMugCount());
+    // }
+
+    // Helper to reset timer and internal flags (does not change difficulty)
+    void ResetLevelState()
+    {
+        timer = 0f;
+        gameOver = false;
+        nextPrintTime = 1f;
     }
 }
