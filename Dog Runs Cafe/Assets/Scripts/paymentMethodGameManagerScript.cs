@@ -2,9 +2,10 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
-
-public class paymentMethodGameManagerScript : MonoBehaviour
-{
+using TMPro;
+ 
+ public class paymentMethodGameManagerScript : MonoBehaviour
+ {
     public enum DifficultyLevel { Level1 = 1, Level2 = 2, Level3 = 3 }
 
     [Header("Difficulty")]
@@ -58,10 +59,23 @@ public class paymentMethodGameManagerScript : MonoBehaviour
     Dictionary<customerScript, int> waitingAssignments = new Dictionary<customerScript, int>();
 
     // how many customers must be served to win this level (set from difficulty)
-    int remainingToServe = 0;
+    public int remainingToServe = 0;
     // flag to prevent multiple win triggers
     bool levelCompleted = false;
 
+    [Header("UI")]
+    [Tooltip("Optional TextMeshProUGUI to display remaining time and customers.")]
+    public TextMeshProUGUI uiText;
+
+    void UpdateUI()
+    {
+        if (uiText == null) return;
+        int totalSeconds = Mathf.Max(0, Mathf.CeilToInt(remainingTime));
+        int minutes = totalSeconds / 60;
+        int seconds = totalSeconds % 60;
+        uiText.text = $"Time: {minutes}:{seconds:00}   Remaining: {remainingToServe}";
+    }
+ 
     // helper: whether any active customer slots remain
     bool AnyActiveCustomers()
     {
@@ -74,19 +88,43 @@ public class paymentMethodGameManagerScript : MonoBehaviour
     {
         if (levelCompleted) return;
         if (remainingToServe > 0) return;
-        // ensure no active customers remain in the list
-        if (AnyActiveCustomers()) return;
-
+        // let the player win even if some customers are still active
+        //if (AnyActiveCustomers()) return;
+    
         levelCompleted = true;
         levelActive = false;
         if (spawnRoutine != null) { StopCoroutine(spawnRoutine); spawnRoutine = null; }
 
-        Debug.Log("All customers served -> level complete.");
+        //Debug.Log("All customers served -> level complete.");
         var gm = FindObjectOfType<gameManagerScript>();
         if (gm != null)
         {
             gm.OnLevelPassed("Task Completed!", 2.0f);
         }
+        else
+        {
+            // No global game manager -> advance local difficulty and restart the mini-game
+            AdvanceDifficultyAndRestart();
+        }
+    }
+
+    // Advance the local difficulty (Level1 -> Level2 -> Level3) and restart the local mini-game.
+    // Keeps difficulty capped at Level3.
+    public void AdvanceDifficultyAndRestart()
+    {
+        // Advance difficulty
+        if (difficulty == DifficultyLevel.Level1) difficulty = DifficultyLevel.Level2;
+        else if (difficulty == DifficultyLevel.Level2) difficulty = DifficultyLevel.Level3;
+        else difficulty = DifficultyLevel.Level3; // stay at max
+
+        Debug.Log($"paymentMethod: advancing difficulty -> {difficulty}");
+
+        // Apply and restart locally
+        ApplyDifficulty();
+        EnsureListCapacity();
+        EnsureWaitingPoints();
+        // ResetLevel will cleanup spawned objects and start the spawn loop again if enabled
+        ResetLevel();
     }
 
     void Awake()
@@ -119,7 +157,7 @@ public class paymentMethodGameManagerScript : MonoBehaviour
     // minimal helper to start the level / spawn loop when the manager becomes active
     void StartLevelIfReady()
     {
-        Debug.Log($"GM StartLevelIfReady: remainingTime={remainingTime}, spawnPoint={(spawnPoint!=null)}, customer={(customer!=null)}, spawnInterval={spawnInterval}");
+        //Debug.Log($"GM StartLevelIfReady: remainingTime={remainingTime}, spawnPoint={(spawnPoint!=null)}, customer={(customer!=null)}, spawnInterval={spawnInterval}");
         if (remainingTime > 0f)
         {
             levelActive = true;
@@ -128,14 +166,14 @@ public class paymentMethodGameManagerScript : MonoBehaviour
             levelCompleted = false;
             if (spawnPoint != null && customer != null && spawnInterval > 0f && spawnRoutine == null)
             {
-                Debug.Log("Starting SpawnLoop coroutine");
+                //Debug.Log("Starting SpawnLoop coroutine");
                 // spawn one immediately so the level has at least one customer without waiting
                 TrySpawnCustomer();
                 spawnRoutine = StartCoroutine(SpawnLoop());
             }
             else
             {
-                Debug.LogWarning("SpawnLoop NOT started: check spawnPoint, customer prefab, spawnInterval > 0 or spawnRoutine already running");
+                //Debug.LogWarning("SpawnLoop NOT started: check spawnPoint, customer prefab, spawnInterval > 0 or spawnRoutine already running");
             }
         }
     }
@@ -148,7 +186,7 @@ public class paymentMethodGameManagerScript : MonoBehaviour
         {
             SatisfyAllCustomers();
         }
-
+ 
         // countdown level timer
         if (levelActive)
         {
@@ -159,108 +197,198 @@ public class paymentMethodGameManagerScript : MonoBehaviour
                 levelActive = false;
                 OnLevelTimeExpired();
             }
-        }
-    }
-
-    void OnDisable()
-    {
-        if (spawnRoutine != null) StopCoroutine(spawnRoutine);
-        spawnRoutine = null;
-    }
-
-    void ApplyDifficulty()
-    {
-        switch (difficulty)
-        {
-            case DifficultyLevel.Level1:
-                customerListLength = Mathf.Max(1, level1CustomerCount);
-                remainingTime = Mathf.Max(0f, level1Time);
-                break;
-            case DifficultyLevel.Level2:
-                customerListLength = Mathf.Max(1, level2CustomerCount);
-                remainingTime = Mathf.Max(0f, level2Time);
-                break;
-            case DifficultyLevel.Level3:
-                customerListLength = Mathf.Max(1, level3CustomerCount);
-                remainingTime = Mathf.Max(0f, level3Time);
-                break;
-        }
-    }
-
-    void OnLevelTimeExpired()
-    {
-        // stop spawning new customers
-        if (spawnRoutine != null)
-        {
-            StopCoroutine(spawnRoutine);
-            spawnRoutine = null;
-        }
-
-        Debug.Log($"Level time expired for difficulty {difficulty}. Remaining customers must still be served.");
-
-        // Notify game manager to handle life loss / transition / restart sequence.
-        var gm = FindObjectOfType<gameManagerScript>();
-        if (gm != null)
-        {
-            // Use a short message and delay; gameManager handles restarts.
-            gm.OnPlayerRanOutOfTimeRestartLevel("You lost a life! Retrying current level...", 2.0f);
-        }
+            // update UI while running
+            UpdateUI();
+         }
         else
         {
-            // fallback: restart current scene immediately if no game manager present
-            UnityEngine.SceneManagement.SceneManager.LoadScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex);
+            // ensure UI reflects non-running state as well
+            UpdateUI();
         }
-    }
+     }
+ 
+     void OnDisable()
+     {
+        // stop spawn coroutine
+        if (spawnRoutine != null) { StopCoroutine(spawnRoutine); spawnRoutine = null; }
 
-    void EnsureListCapacity()
-    {
-        if (customerListLength < 0) customerListLength = 0;
-        if (customers == null)
-            customers = new List<customerScript>(customerListLength);
-
-        while (customers.Count < customerListLength)
-            customers.Add(null);
-        while (customers.Count > customerListLength)
-            customers.RemoveAt(customers.Count - 1);
-    }
-
-    void EnsureWaitingPoints()
-    {
-        int len = (waitingPoints != null) ? waitingPoints.Length : 0;
-        if (waitingPointOccupied == null || waitingPointOccupied.Length != len)
-            waitingPointOccupied = new bool[len];
-
-        // clear map entries that reference out-of-range indices
-        var toRemove = new List<customerScript>();
-        foreach (var kv in waitingAssignments)
+        // destroy any spawned customer GameObjects and clear list to avoid leftovers when switching games
+        if (customers != null)
         {
-            if (kv.Value < 0 || kv.Value >= len) toRemove.Add(kv.Key);
+            for (int i = 0; i < customers.Count; i++)
+            {
+                var c = customers[i];
+                if (c != null && c.gameObject != null)
+                    Destroy(c.gameObject);
+                customers[i] = null;
+            }
+            customers.Clear();
         }
-        foreach (var k in toRemove)
-            waitingAssignments.Remove(k);
-    }
 
-    IEnumerator SpawnLoop()
-    {
-        Debug.Log("SpawnLoop entered");
-        while (true)
-        {
-            yield return new WaitForSeconds(spawnInterval);
-            TrySpawnCustomer();
-        }
-    }
+        // clear waiting assignment state
+        waitingAssignments.Clear();
+        if (waitingPointOccupied != null)
+            for (int i = 0; i < waitingPointOccupied.Length; i++) waitingPointOccupied[i] = false;
 
-    void TrySpawnCustomer()
-    {
-        Debug.Log($"TrySpawnCustomer: spawnPoint={(spawnPoint!=null)}, customer={(customer!=null)}, IsFull={IsFull()}, customerCount={customers?.Count}");
+        // mark inactive and reset runtime counters; reapply difficulty so remainingTime is reset to preset
+        levelActive = false;
+        remainingToServe = 0;
+        levelCompleted = false;
+        ApplyDifficulty(); // this resets remainingTime based on current difficulty preset
+        // clear UI when disabled
+        if (uiText != null) uiText.text = "";
+     }
+ 
+     void ApplyDifficulty()
+     {
+         Debug.Log($"Applying difficulty settings: {difficulty}");
+         switch (difficulty)
+         {
+             case DifficultyLevel.Level1:
+                 customerListLength = Mathf.Max(1, level1CustomerCount);
+                 remainingTime = Mathf.Max(0f, level1Time);
+                 break;
+             case DifficultyLevel.Level2:
+                 customerListLength = Mathf.Max(1, level2CustomerCount);
+                 remainingTime = Mathf.Max(0f, level2Time);
+                 break;
+             case DifficultyLevel.Level3:
+                 customerListLength = Mathf.Max(1, level3CustomerCount);
+                 remainingTime = Mathf.Max(0f, level3Time);
+                 break;
+         }
+        // reflect new values in UI immediately
+        UpdateUI();
+     }
+ 
+     // Called by gameManager (SendMessage or direct call) to set difficulty 1..3
+     public void SetDifficultyLevel(int difficultyLevel)
+     {
+         Debug.Log($"SetDifficultyLevel called with {difficultyLevel}");
+         int v = Mathf.Clamp(difficultyLevel, 1, 3);
+         difficulty = (DifficultyLevel)v;
+         ApplyDifficulty();
+     }
+ 
+     // Called by gameManager to reset/restart this mini-game without changing scene.
+     public void ResetLevel()
+     {
+         // stop spawn routine
+         if (spawnRoutine != null) { StopCoroutine(spawnRoutine); spawnRoutine = null; }
+ 
+         // destroy any spawned customer GameObjects
+         if (customers != null)
+         {
+             for (int i = 0; i < customers.Count; i++)
+             {
+                 var c = customers[i];
+                 if (c != null && c.gameObject != null)
+                     Destroy(c.gameObject);
+                 customers[i] = null;
+             }
+         }
+ 
+         // clear waiting assignments and occupancy
+         waitingAssignments.Clear();
+         if (waitingPointOccupied != null)
+             for (int i = 0; i < waitingPointOccupied.Length; i++) waitingPointOccupied[i] = false;
+ 
+         // re-apply capacity/difficulty and reset counters
+         EnsureListCapacity();
+         ApplyDifficulty();
+         remainingToServe = Mathf.Max(0, customerListLength);
+         levelCompleted = false;
+         levelActive = false;
+ 
+         // if this manager is enabled, start the level loop again
+         if (isActiveAndEnabled)
+         {
+             StartLevelIfReady();
+         }
+        // update UI after reset
+        UpdateUI();
+     }
+ 
+     // Compatibility hook called by gameManager when it starts the level
+     public void OnLevelStart()
+     {
+         ResetLevel();
+     }
+ 
+     void OnLevelTimeExpired()
+     {
+         // stop spawning new customers
+         if (spawnRoutine != null)
+         {
+             StopCoroutine(spawnRoutine);
+             spawnRoutine = null;
+         }
+
+         //Debug.Log($"Level time expired for difficulty {difficulty}. Remaining customers must still be served.");
+
+         // Notify game manager to handle life loss / transition / restart sequence.
+         var gm = FindObjectOfType<gameManagerScript>();
+         if (gm != null)
+         {
+             // Use a short message and delay; gameManager handles restarts.
+             gm.OnPlayerRanOutOfTimeRestartLevel("You lost a life! Retrying current level...", 2.0f);
+         }
+         else
+         {
+             // fallback: restart current scene immediately if no game manager present
+             UnityEngine.SceneManagement.SceneManager.LoadScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex);
+         }
+     }
+ 
+     void EnsureListCapacity()
+     {
+         if (customerListLength < 0) customerListLength = 0;
+         if (customers == null)
+             customers = new List<customerScript>(customerListLength);
+
+         while (customers.Count < customerListLength)
+             customers.Add(null);
+         while (customers.Count > customerListLength)
+             customers.RemoveAt(customers.Count - 1);
+     }
+ 
+     void EnsureWaitingPoints()
+     {
+         int len = (waitingPoints != null) ? waitingPoints.Length : 0;
+         if (waitingPointOccupied == null || waitingPointOccupied.Length != len)
+             waitingPointOccupied = new bool[len];
+
+         // clear map entries that reference out-of-range indices
+         var toRemove = new List<customerScript>();
+         foreach (var kv in waitingAssignments)
+         {
+             if (kv.Value < 0 || kv.Value >= len) toRemove.Add(kv.Key);
+         }
+         foreach (var k in toRemove)
+             waitingAssignments.Remove(k);
+     }
+ 
+     IEnumerator SpawnLoop()
+     {
+         //Debug.Log("SpawnLoop entered");
+         while (true)
+         {
+             yield return new WaitForSeconds(spawnInterval);
+             TrySpawnCustomer();
+         }
+     }
+ 
+     void TrySpawnCustomer()
+     {
+        //Debug.Log($"TrySpawnCustomer: spawnPoint={(spawnPoint!=null)}, customer={(customer!=null)}, IsFull={IsFull()}, customerCount={customers?.Count}");
         if (customer == null || spawnPoint == null) 
         {
-            Debug.LogWarning("TrySpawnCustomer aborted: missing customer prefab or spawnPoint");
+            //Debug.LogWarning("TrySpawnCustomer aborted: missing customer prefab or spawnPoint");
             return;
         }
         if (IsFull()) 
         {
-            Debug.Log("TrySpawnCustomer aborted: customer list full");
+            //Debug.Log("TrySpawnCustomer aborted: customer list full");
             return;
         }
 
@@ -274,7 +402,7 @@ public class paymentMethodGameManagerScript : MonoBehaviour
         var cust = go.GetComponent<customerScript>();
         if (cust == null)
         {
-            Debug.LogWarning("Spawned prefab does not contain customerScript; destroying instance.", go);
+            //Debug.LogWarning("Spawned prefab does not contain customerScript; destroying instance.", go);
             Destroy(go);
             return;
         }
@@ -344,6 +472,9 @@ public class paymentMethodGameManagerScript : MonoBehaviour
 
         // check whether level has been completed
         CheckForLevelWin();
+
+        // update UI to reflect new remaining count
+        UpdateUI();
     }
 
     // trigger all current customers to walk to exit (developer shortcut)
