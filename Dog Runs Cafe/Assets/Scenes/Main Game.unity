@@ -3316,9 +3316,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::KetchupLevelManager
   timerText: {fileID: 1712976948}
-  level1Time: 30
-  level2Time: 20
-  level3Time: 15
+  level1Time: 45
+  level2Time: 45
+  level3Time: 45
   remainingTime: 0
   level1Plates: {fileID: 2089182133}
   level2Plates: {fileID: 1433003664}

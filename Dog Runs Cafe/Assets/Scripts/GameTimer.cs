@@ -251,10 +251,10 @@ public enum DifficultyLevel
         difficulty = difficultyOrder[difficultyIndex];
         switch (difficultyIndex + 1) // 1..3 mapping
         {
-            case 1: surviveTime = 15f; break;
-            case 2: surviveTime = 25f; break;
-            case 3: surviveTime = 35f; break;
-            default: surviveTime = 15f; break;
+            case 1: surviveTime = 10f; break;
+            case 2: surviveTime = 10f; break;
+            case 3: surviveTime = 10f; break;
+            default: surviveTime = 10f; break;
         }
 
         if (debugLogDifficulty) Debug.Log($"GameTimer: locally advanced difficulty -> {difficulty} (idx {difficultyIndex})");
