@@ -163,6 +163,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 31545738314deae4c8d9707c0c9e78f2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: '::'
+  miniGames: []
+  maxLives: 5
+  currentLives: 0
+  livesText: {fileID: 0}
+  currentLevelIndex: 0
+  totalLevels: 9
+  customLevelSequence: []
 --- !u!54 &293126049 stripped
 Rigidbody:
   m_CorrespondingSourceObject: {fileID: 6370092635037569692, guid: 4907d068857ec534387d6ad9ac717315, type: 3}
@@ -432,6 +439,33 @@ MonoBehaviour:
   m_ShadowLayerMask: 1
   m_RenderingLayers: 1
   m_ShadowRenderingLayers: 1
+--- !u!1 &778014199 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 6991204587036369684, guid: 4907d068857ec534387d6ad9ac717315, type: 3}
+  m_PrefabInstance: {fileID: 8535475243835414211}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &778014206
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 778014199}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 418ddfc2aa1c887439f0ab114ad6cd10, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::playerTrayGameScript
+  maxPitch: 30
+  maxRoll: 20
+  pitchSensitivity: 36
+  rollSensitivity: 36
+  returnRotationSpeed: 360
+  returnRotationTolerance: 0.25
+  rb: {fileID: 0}
+  mouthGrabber: {fileID: 0}
+  cupObject: {fileID: 0}
+  currentState: Idle
 --- !u!1 &832575517
 GameObject:
   m_ObjectHideFlags: 0
@@ -622,8 +656,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GameTimer
   surviveTime: 10
-  mugPrefab: {fileID: 6502918101018806577, guid: e3ae0bee7a3779842a08dbb4ea4865fe, type: 3}
-  spawnArea: {fileID: 1600187061}
+  difficulty: 0
+  mugs: []
 --- !u!4 &1236020343
 Transform:
   m_ObjectHideFlags: 0
@@ -943,6 +977,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 256621860589669790, guid: 4907d068857ec534387d6ad9ac717315, type: 3}
+      propertyPath: m_Enabled
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 4327061848470504415, guid: 4907d068857ec534387d6ad9ac717315, type: 3}
       propertyPath: m_LocalPosition.x
       value: -0
@@ -990,7 +1028,10 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 6991204587036369684, guid: 4907d068857ec534387d6ad9ac717315, type: 3}
+      insertIndex: 2
+      addedObject: {fileID: 778014206}
   m_SourcePrefab: {fileID: 100100000, guid: 4907d068857ec534387d6ad9ac717315, type: 3}
 --- !u!1001 &8998393861982889663
 PrefabInstance:
@@ -1003,6 +1044,14 @@ PrefabInstance:
     - target: {fileID: 2021059549296565464, guid: e3ae0bee7a3779842a08dbb4ea4865fe, type: 3}
       propertyPath: m_Center.y
       value: -0.044
+      objectReference: {fileID: 0}
+    - target: {fileID: 2197870730995325348, guid: e3ae0bee7a3779842a08dbb4ea4865fe, type: 3}
+      propertyPath: m_Enabled
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5905358960181647125, guid: e3ae0bee7a3779842a08dbb4ea4865fe, type: 3}
+      propertyPath: m_Enabled
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 6502918101018806577, guid: e3ae0bee7a3779842a08dbb4ea4865fe, type: 3}
       propertyPath: m_Name
