@@ -1,5 +1,7 @@
 using System.Collections;
 using TMPro;
+using UnityEditor.Rendering.Universal.ShaderGraph;
+
 // using UnityEditor.Timeline.Actions; // removed - UnityEditor namespaces shouldn't be in runtime scripts
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -70,6 +72,8 @@ public class playerKetchupScript : MonoBehaviour
     public AudioClip Ding;
     public TextMeshPro scoreText;
     float scoreAccuracy = 0f;
+    int ketchupPassCounter;
+    int currentLevel;
     bool isGameFinished = false;
     InputAction finishAction;
 
@@ -282,6 +286,7 @@ public class playerKetchupScript : MonoBehaviour
             if (ketchupScoreManager.Instance != null && !isGameFinished)
             {
                 scoreAccuracy = ketchupScoreManager.Instance.GetScoreAccuracy();
+                currentLevel = KetchupLevelManager.Instance.GetCurrentLevel();
                 popupTextResult();
                 isGameFinished = true;
             }
@@ -353,18 +358,15 @@ public class playerKetchupScript : MonoBehaviour
     {
         string message;
         Color color;
+        int ketchupHits = ketchupScoreManager.Instance.allHits.Count;
+        UpdatePassCounterByLevel();
 
-        if (!KetchupLevelManager.Instance.AreAllOmelettesHit())
+        if ((!KetchupLevelManager.Instance.AreAllOmelettesHit() || scoreAccuracy <= .79f) || ketchupHits < ketchupPassCounter)
         {
             message = "Fail";
             color = Color.red;
         }
-        else if (scoreAccuracy <= 0.50f)
-        {
-            message = "Good";
-            color = Color.blue;
-        }
-        else if (scoreAccuracy <= 0.70f)
+        else if (scoreAccuracy <= 0.80f)
         {
             message = "Great!";
             color = Color.green;
@@ -381,6 +383,7 @@ public class playerKetchupScript : MonoBehaviour
             scoreText.gameObject.SetActive(true);
             StopAllCoroutines();
             StartCoroutine(PopupAnimation(scoreText.transform));
+            //if (!KetchupLevelManager.Instance.AreAllOmelettesHit() || scoreAccuracy <= .79f) StartCoroutine(LevelResetDelay());
         }
     }
 
@@ -400,9 +403,26 @@ public class playerKetchupScript : MonoBehaviour
         targetTransform.localScale = Vector3.one/2.5f;
     }
 
+    IEnumerator LevelResetDelay()
+    {
+        yield return new WaitForSeconds(2f);
+        Debug.Log("Work?");
+        gameManagerScript.Instance.OnPlayerRanOutOfTimeRestartLevel();
+    }
+
     public void ResetScoreText()
     {
         scoreText.gameObject.SetActive(false);
         isGameFinished = false;
+    }
+
+    public void UpdatePassCounterByLevel()
+    {
+        switch (currentLevel)
+        {
+            case 1: ketchupPassCounter = 25; break;
+            case 2: ketchupPassCounter = 50; break;
+            case 3: ketchupPassCounter = 75; break;
+        }
     }
 }

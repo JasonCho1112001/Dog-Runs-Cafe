@@ -186,4 +186,9 @@ public class KetchupLevelManager : MonoBehaviour
         }
         return true;
     }
+
+    public int GetCurrentLevel()
+    {
+        return currentLevel;
+    }
 }
