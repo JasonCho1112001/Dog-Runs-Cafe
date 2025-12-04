@@ -16,11 +16,5 @@ public class BallGroundCheck : MonoBehaviour
         Debug.Log("A liquid ball hit the ground!");
         timer.Lose();
     }
-
-    if (collision.collider.CompareTag("Tray"))
-    {
-        Debug.Log("A liquid ball touched the tray!");
-        timer.Lose();
-    }
 }
 }

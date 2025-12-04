@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Reflection;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
@@ -83,10 +84,62 @@ public class gameManagerScript : MonoBehaviour
     // Called when lives reach zero
     void OnOutOfLives()
     {
-        Debug.Log("Out of lives! Implement game over handling here.");
+        Debug.Log("Out of lives -> starting game over sequence.");
         UpdateLivesUI();
-        // Optional: restart current scene or show game over UI
-        // SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+        StopAllCoroutines();
+        StartCoroutine(GameOverRoutine());
+    }
+
+    IEnumerator GameOverRoutine()
+    {
+        // Create a simple fullscreen black canvas with "You lose! Try again"
+        GameObject canvasGO = new GameObject("GameOver_Canvas");
+        canvasGO.layer = LayerMask.NameToLayer("UI");
+        var canvas = canvasGO.AddComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.sortingOrder = 10000;
+        canvasGO.AddComponent<CanvasScaler>();
+        canvasGO.AddComponent<GraphicRaycaster>();
+
+        GameObject bg = new GameObject("BG");
+        bg.transform.SetParent(canvasGO.transform, false);
+        var img = bg.AddComponent<Image>();
+        img.color = Color.black;
+        var rt = img.rectTransform;
+        rt.anchorMin = Vector2.zero;
+        rt.anchorMax = Vector2.one;
+        rt.offsetMin = Vector2.zero;
+        rt.offsetMax = Vector2.zero;
+
+        GameObject textGO = new GameObject("Message");
+        textGO.transform.SetParent(canvasGO.transform, false);
+        var txt = textGO.AddComponent<Text>();
+        txt.text = "You lose! Try again";
+        txt.alignment = TextAnchor.MiddleCenter;
+        txt.color = Color.white;
+        Font runtimeFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        if (runtimeFont == null) runtimeFont = Font.CreateDynamicFontFromOSFont("Arial", 32);
+        txt.font = runtimeFont;
+        txt.fontSize = 40;
+        var tRT = txt.rectTransform;
+        tRT.anchorMin = new Vector2(0.05f, 0.4f);
+        tRT.anchorMax = new Vector2(0.95f, 0.6f);
+        tRT.offsetMin = Vector2.zero;
+        tRT.offsetMax = Vector2.zero;
+
+        // show for a short duration (use unscaled time)
+        float t = 0f;
+        float displaySeconds = 3f;
+        while (t < displaySeconds)
+        {
+            t += Time.unscaledDeltaTime;
+            yield return null;
+        }
+
+        if (canvasGO != null) Destroy(canvasGO);
+
+        // Restart the main game scene
+        SceneManager.LoadScene("Main Game");
     }
 
     // Update the assigned TextMeshProUGUI with the current lives (safe if null)
@@ -171,6 +224,14 @@ public class gameManagerScript : MonoBehaviour
     public void OnLevelPassed(string message = "Task Completed!", float displaySeconds = 2f)
     {
         if (transitionInProgress) return;
+
+        // If this is the final level, show the win screen instead of the normal level-passed flow.
+        if (currentLevelIndex >= totalLevels - 1)
+        {
+            StartCoroutine(GameWinRoutine());
+            return;
+        }
+
         StartCoroutine(LevelPassedRoutine(message, displaySeconds));
     }
 
@@ -274,7 +335,33 @@ public class gameManagerScript : MonoBehaviour
         var target = miniGames[miniIdx];
         if (target != null)
         {
-            target.SetActive(true);
+            // 0) Directly apply to known manager types (safe & reliable) BEFORE activation.
+            var pm = target.GetComponentInChildren<paymentMethodGameManagerScript>(true);
+            if (pm != null)
+            {
+                var setDiff = pm.GetType().GetMethod("SetDifficultyLevel", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+                if (setDiff != null)
+                {
+                    try
+                    {
+                        setDiff.Invoke(pm, new object[] { difficulty });
+                        Debug.Log($"[gameManager] invoked SetDifficultyLevel on paymentMethod (pre-activate)");
+                    }
+                    catch
+                    {
+                        Debug.LogWarning("[gameManager] reflection invoke of SetDifficultyLevel failed on paymentMethod");
+                    }
+                }
+                else
+                {
+                    // best-effort fallback so older scripts that respond to SendMessage still get it
+                    target.SendMessage("SetDifficultyLevel", difficulty, SendMessageOptions.DontRequireReceiver);
+                    Debug.Log("[gameManager] sent SetDifficultyLevel via SendMessage to paymentMethod (pre-activate)");
+                }
+            }
+
+            // 1) Now activate the mini-game
+             target.SetActive(true);
 
             // 1) Prefer direct method call on a known manager component (more reliable than SendMessage).
             //    If the mini-game has a component named KetchupLevelManager (or similar) that exposes SetDifficultyLevel,
@@ -292,6 +379,26 @@ public class gameManagerScript : MonoBehaviour
                 target.SendMessage("SetDifficultyLevel", difficulty, SendMessageOptions.DontRequireReceiver);
                 target.SendMessage("ResetLevel", SendMessageOptions.DontRequireReceiver);
                 target.SendMessage("OnLevelStart", SendMessageOptions.DontRequireReceiver);
+            }
+
+            Debug.Log($"Starting level {currentLevelIndex} -> miniGame {miniIdx} difficulty {difficulty}");
+            // 2) After activation call ResetLevel / OnLevelStart on any components that implement them.
+            var allCompsPost = target.GetComponentsInChildren<MonoBehaviour>(true);
+            foreach (var mb in allCompsPost)
+            {
+                if (mb == null) continue;
+                var reset = mb.GetType().GetMethod("ResetLevel", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                if (reset != null)
+                {
+                    try { reset.Invoke(mb, null); }
+                    catch { }
+                }
+                var onStart = mb.GetType().GetMethod("OnLevelStart", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                if (onStart != null)
+                {
+                    try { onStart.Invoke(mb, null); }
+                    catch { }
+                }
             }
 
             Debug.Log($"Starting level {currentLevelIndex} -> miniGame {miniIdx} difficulty {difficulty}");
@@ -313,14 +420,56 @@ public class gameManagerScript : MonoBehaviour
     
     System.Collections.IEnumerator RestartRoutine(GameObject target)
     {
+        // deactivate/reactivate to force Awake/OnEnable/Start to run again on that mini-game
         target.SetActive(false);
         yield return null; // wait a frame
         target.SetActive(true);
-        target.SendMessage("ResetLevel", SendMessageOptions.DontRequireReceiver);
-        target.SendMessage("OnLevelStart", SendMessageOptions.DontRequireReceiver);
 
-        // reload the current scene to ensure a full clean restart
-        UnityEngine.SceneManagement.SceneManager.LoadScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex);
+        Debug.Log($"[gameManager] RestartRoutine: target='{target.name}' active={target.activeSelf}");
+        // list components on the target (help debug why ResetLevel might not be called)
+        var comps = target.GetComponentsInChildren<MonoBehaviour>(true);
+        Debug.Log($"[gameManager] RestartRoutine: found {comps.Length} MonoBehaviour components on target");
+        for (int i = 0; i < comps.Length; i++)
+        {
+            if (comps[i] == null) continue;
+            Debug.Log($"[gameManager]   comp[{i}] = {comps[i].GetType().Name} (enabled={comps[i].enabled})");
+        }
+ 
+        // Try direct calls for common managers before falling back to SendMessage.
+        var gt = target.GetComponentInChildren<GameTimer>(true);
+        if (gt != null)
+        {
+            Debug.Log("[gameManager] RestartRoutine: calling GameTimer.ResetLevel / OnLevelStart directly");
+            try { gt.ResetLevel(); } catch { }
+            try { gt.OnLevelStart(); } catch { }
+        }
+        else
+        {
+            // try paymentMethod and ketchup level managers directly
+            var pm = target.GetComponentInChildren<paymentMethodGameManagerScript>(true);
+            if (pm != null)
+            {
+                Debug.Log("[gameManager] RestartRoutine: calling paymentMethod.ResetLevel directly (if available)");
+                var reset = pm.GetType().GetMethod("ResetLevel", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+                if (reset != null) { try { reset.Invoke(pm, null); } catch { } }
+            }
+ 
+            var km = target.GetComponentInChildren<KetchupLevelManager>(true);
+            if (km != null)
+            {
+                Debug.Log("[gameManager] RestartRoutine: calling KetchupLevelManager.ResetLevel directly");
+                try { km.ResetLevel(); } catch { }
+                try { km.OnLevelStart(); } catch { }
+            }
+ 
+            // final fallback: SendMessage so any script named ResetLevel/OnLevelStart still gets invoked
+            target.SendMessage("ResetLevel", SendMessageOptions.DontRequireReceiver);
+            target.SendMessage("OnLevelStart", SendMessageOptions.DontRequireReceiver);
+            Debug.Log("[gamemanager] RestartRoutine: Sent ResetLevel / OnLevelStart via SendMessage (fallback)");
+        }
+ 
+        // do NOT reload the scene here — we only want to reset the mini-game
+        yield break;
     }
     
     // Advance to the next level in the playthrough
@@ -331,13 +480,64 @@ public class gameManagerScript : MonoBehaviour
         if (currentLevelIndex >= totalLevels)
         {
             Debug.Log($"Playthrough complete. currentLevelIndex={currentLevelIndex}, totalLevels={totalLevels}");
-            // Keep the index to indicate completion (one past the last valid level).
-            // If you prefer to keep it at the last valid level, uncomment the next line instead:
-            // currentLevelIndex = Mathf.Clamp(currentLevelIndex, 0, totalLevels - 1);
-            // implement end-of-run behavior if desired
+            // Playthrough finished -> show win message
+            if (!transitionInProgress)
+                StartCoroutine(GameWinRoutine());
             return;
         }
         StartCurrentLevel();
+    }
+    
+    IEnumerator GameWinRoutine()
+    {
+        transitionInProgress = true;
+
+        // create a simple fullscreen black canvas with message
+        GameObject canvasGO = new GameObject("GameWin_Canvas");
+        canvasGO.layer = LayerMask.NameToLayer("UI");
+        var canvas = canvasGO.AddComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.sortingOrder = 10000;
+        canvasGO.AddComponent<CanvasScaler>();
+        canvasGO.AddComponent<GraphicRaycaster>();
+
+        GameObject bg = new GameObject("BG");
+        bg.transform.SetParent(canvasGO.transform, false);
+        var img = bg.AddComponent<Image>();
+        img.color = Color.black;
+        var rt = img.rectTransform;
+        rt.anchorMin = Vector2.zero;
+        rt.anchorMax = Vector2.one;
+        rt.offsetMin = Vector2.zero;
+        rt.offsetMax = Vector2.zero;
+
+        GameObject textGO = new GameObject("Message");
+        textGO.transform.SetParent(canvasGO.transform, false);
+        var txt = textGO.AddComponent<Text>();
+        txt.text = "You win! Good job on being a good cafe owner";
+        txt.alignment = TextAnchor.MiddleCenter;
+        txt.color = Color.white;
+        Font runtimeFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        if (runtimeFont == null) runtimeFont = Font.CreateDynamicFontFromOSFont("Arial", 32);
+        txt.font = runtimeFont;
+        txt.fontSize = 36;
+        var tRT = txt.rectTransform;
+        tRT.anchorMin = new Vector2(0.05f, 0.4f);
+        tRT.anchorMax = new Vector2(0.95f, 0.6f);
+        tRT.offsetMin = Vector2.zero;
+        tRT.offsetMax = Vector2.zero;
+
+        float t = 0f;
+        float displaySeconds = 4f;
+        while (t < displaySeconds)
+        {
+            t += Time.unscaledDeltaTime;
+            yield return null;
+        }
+
+        if (canvasGO != null) Destroy(canvasGO);
+        transitionInProgress = false;
+        // leave currentLevelIndex at totalLevels to indicate completed playthrough
     }
 
     // Advance to the next mini-game (same difficulty block).
@@ -446,6 +646,22 @@ public class gameManagerScript : MonoBehaviour
         if (Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame)
         {
             SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+        }
+
+        // DEBUG: press L to instantly win the current level and advance
+        if (Keyboard.current != null && Keyboard.current.lKey.wasPressedThisFrame)
+        {
+            Debug.Log("Debug: forcing level win/advance");
+            OnLevelPassed("Cheat: Level Skipped!", 0.5f);
+
+            if(GameObject.Find("GameTimer") != null)
+            {
+                var gt = GameObject.Find("GameTimer").GetComponent<GameTimer>();
+                if (gt != null)
+                {
+                    gt.Win();
+                }
+            }
         }
 
         // Press 1,2,3... to load mini-games (I know this code is spaghetti)

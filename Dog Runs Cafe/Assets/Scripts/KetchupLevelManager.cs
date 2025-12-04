@@ -4,10 +4,24 @@ using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.ProBuilder.MeshOperations;
+using TMPro;
 
 public class KetchupLevelManager : MonoBehaviour
 {
     public static KetchupLevelManager Instance;
+    
+    [Header("UI")]
+    [Tooltip("Optional TextMeshProUGUI to display remaining time.")]
+    public TextMeshProUGUI timerText;
+
+    [Header("Timer per difficulty (seconds)")]
+    public float level1Time = 30f;
+    public float level2Time = 45f;
+    public float level3Time = 60f;
+
+    // runtime timer
+    [HideInInspector] public float remainingTime = 0f;
+    bool timerRunning = false;
 
     [Header("Level 1 Objects")]
     public GameObject level1Plates;
@@ -44,6 +58,7 @@ public class KetchupLevelManager : MonoBehaviour
     {
         // Ensure standalone start loads currentLevel (defaults to 1)
         LoadLevel(currentLevel);
+        UpdateTimerUI();
     }
 
     // Called by gameManager via SendMessage("SetDifficultyLevel", difficulty)
@@ -57,7 +72,42 @@ public class KetchupLevelManager : MonoBehaviour
     // Optional ResetLevel hook used by gameManager; reload same difficulty
     public void ResetLevel()
     {
+        Debug.Log("[Ketchup] ResetLevel called");
+
+        // stop any transition and ensure timer coroutines are stopped
+        isTransitioning = false;
+        timerRunning = false;
+        StopAllCoroutines();
+
+        // remove any spawned ketchup splats so they don't persist across resets
+        CleanupSpawnedObjects();
+
+        // reset score UI / manager state if available
+        uiResetHandler?.ResetScoreText();
+        if (scoreManager != null) scoreManager.allHits.Clear();
+
+        // Ensure omelettes are put back into initial state if they expose a reset hook (best-effort)
+        foreach (var omelette in FindObjectsOfType<OmeletteController>())
+        {
+            if (omelette != null)
+                omelette.gameObject.SendMessage("ResetOmelette", SendMessageOptions.DontRequireReceiver);
+        }
+
+        // Rebuild the level (LoadLevel will set remainingTime and start the timer)
+        // make sure currentLevel is valid
+        currentLevel = Mathf.Clamp(currentLevel, 1, 3);
+
+        // Ensure timeScale is normal
+        if (Time.timeScale <= 0f) Time.timeScale = 1f;
+
+        // Call LoadLevel to set remainingTime for the difficulty and start timerRunning
         LoadLevel(currentLevel);
+        
+        // Enforce timerRunning true and update UI to ensure immediate visible reset
+        timerRunning = true;
+        UpdateTimerUI();
+
+        Debug.Log($"[Ketchup] ResetLevel finished: level={currentLevel}, remainingTime={remainingTime}, timerRunning={timerRunning}");
     }
 
     // Optional hook invoked by gameManager when the level is actively started.
@@ -81,11 +131,41 @@ public class KetchupLevelManager : MonoBehaviour
                 StartCoroutine(TransitionToLevel(nextLevel));
             }
         }
+        
+        // timer countdown while level is active and not transitioning
+        if (timerRunning && !isTransitioning)
+        {
+            remainingTime -= Time.deltaTime;
+            if (remainingTime <= 0f)
+            {
+                remainingTime = 0f;
+                timerRunning = false;
+                UpdateTimerUI();
+                // notify global manager that time ran out (lose a life / restart)
+                var gm = FindObjectOfType<gameManagerScript>();
+                if (gm != null)
+                {
+                    gm.OnPlayerRanOutOfTimeRestartLevel("Time's up! You lost a life.", 2f);
+                }
+                else
+                {
+                    // local fallback: restart same level
+                    StartCoroutine(TransitionToLevel(currentLevel));
+                }
+            }
+            else
+            {
+                // update UI every frame while running
+                UpdateTimerUI();
+            }
+        }
     }
 
     IEnumerator TransitionToLevel(int levelIndex)
     {
         isTransitioning = true;
+        // stop timer while transitioning
+        timerRunning = false;
 
         yield return new WaitForSeconds(3f);
 
@@ -152,6 +232,26 @@ public class KetchupLevelManager : MonoBehaviour
                 activeOmelettes.Add(omelette);
             }
         }
+        
+        // set timer based on selected difficulty and start countdown
+        switch (difficulty)
+        {
+            case 1: remainingTime = level1Time; break;
+            case 2: remainingTime = level2Time; break;
+            case 3: remainingTime = level3Time; break;
+            default: remainingTime = level1Time; break;
+        }
+        timerRunning = true;
+        UpdateTimerUI();
+    }
+
+    void UpdateTimerUI()
+    {
+        if (timerText == null) return;
+        int totalSeconds = Mathf.Max(0, Mathf.CeilToInt(remainingTime));
+        int minutes = totalSeconds / 60;
+        int seconds = totalSeconds % 60;
+        timerText.text = $"Time: {minutes}:{seconds:00}";
     }
 
     void SetLevelActive(GameObject level, bool activeStatus)
