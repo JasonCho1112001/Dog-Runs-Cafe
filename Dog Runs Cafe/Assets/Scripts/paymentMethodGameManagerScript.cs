@@ -58,7 +58,7 @@ public class paymentMethodGameManagerScript : MonoBehaviour
     Dictionary<customerScript, int> waitingAssignments = new Dictionary<customerScript, int>();
 
     // how many customers must be served to win this level (set from difficulty)
-    public int remainingToServe = 0;
+    int remainingToServe = 0;
     // flag to prevent multiple win triggers
     bool levelCompleted = false;
 
@@ -74,14 +74,14 @@ public class paymentMethodGameManagerScript : MonoBehaviour
     {
         if (levelCompleted) return;
         if (remainingToServe > 0) return;
-        // let the player win even if some customers are still active
-        //if (AnyActiveCustomers()) return;
+        // ensure no active customers remain in the list
+        if (AnyActiveCustomers()) return;
 
         levelCompleted = true;
         levelActive = false;
         if (spawnRoutine != null) { StopCoroutine(spawnRoutine); spawnRoutine = null; }
 
-        //Debug.Log("All customers served -> level complete.");
+        Debug.Log("All customers served -> level complete.");
         var gm = FindObjectOfType<gameManagerScript>();
         if (gm != null)
         {
@@ -119,7 +119,7 @@ public class paymentMethodGameManagerScript : MonoBehaviour
     // minimal helper to start the level / spawn loop when the manager becomes active
     void StartLevelIfReady()
     {
-        //Debug.Log($"GM StartLevelIfReady: remainingTime={remainingTime}, spawnPoint={(spawnPoint!=null)}, customer={(customer!=null)}, spawnInterval={spawnInterval}");
+        Debug.Log($"GM StartLevelIfReady: remainingTime={remainingTime}, spawnPoint={(spawnPoint!=null)}, customer={(customer!=null)}, spawnInterval={spawnInterval}");
         if (remainingTime > 0f)
         {
             levelActive = true;
@@ -128,14 +128,14 @@ public class paymentMethodGameManagerScript : MonoBehaviour
             levelCompleted = false;
             if (spawnPoint != null && customer != null && spawnInterval > 0f && spawnRoutine == null)
             {
-                //Debug.Log("Starting SpawnLoop coroutine");
+                Debug.Log("Starting SpawnLoop coroutine");
                 // spawn one immediately so the level has at least one customer without waiting
                 TrySpawnCustomer();
                 spawnRoutine = StartCoroutine(SpawnLoop());
             }
             else
             {
-                //Debug.LogWarning("SpawnLoop NOT started: check spawnPoint, customer prefab, spawnInterval > 0 or spawnRoutine already running");
+                Debug.LogWarning("SpawnLoop NOT started: check spawnPoint, customer prefab, spawnInterval > 0 or spawnRoutine already running");
             }
         }
     }
@@ -164,37 +164,12 @@ public class paymentMethodGameManagerScript : MonoBehaviour
 
     void OnDisable()
     {
-        // stop spawn coroutine
-        if (spawnRoutine != null) { StopCoroutine(spawnRoutine); spawnRoutine = null; }
-
-        // destroy any spawned customer GameObjects and clear list to avoid leftovers when switching games
-        if (customers != null)
-        {
-            for (int i = 0; i < customers.Count; i++)
-            {
-                var c = customers[i];
-                if (c != null && c.gameObject != null)
-                    Destroy(c.gameObject);
-                customers[i] = null;
-            }
-            customers.Clear();
-        }
-
-        // clear waiting assignment state
-        waitingAssignments.Clear();
-        if (waitingPointOccupied != null)
-            for (int i = 0; i < waitingPointOccupied.Length; i++) waitingPointOccupied[i] = false;
-
-        // mark inactive and reset runtime counters; reapply difficulty so remainingTime is reset to preset
-        levelActive = false;
-        remainingToServe = 0;
-        levelCompleted = false;
-        ApplyDifficulty(); // this resets remainingTime based on current difficulty preset
+        if (spawnRoutine != null) StopCoroutine(spawnRoutine);
+        spawnRoutine = null;
     }
 
     void ApplyDifficulty()
     {
-        Debug.Log($"Applying difficulty settings: {difficulty}");
         switch (difficulty)
         {
             case DifficultyLevel.Level1:
@@ -212,58 +187,6 @@ public class paymentMethodGameManagerScript : MonoBehaviour
         }
     }
 
-    // Called by gameManager (SendMessage or direct call) to set difficulty 1..3
-    public void SetDifficultyLevel(int difficultyLevel)
-    {
-        Debug.Log($"SetDifficultyLevel called with {difficultyLevel}");
-        int v = Mathf.Clamp(difficultyLevel, 1, 3);
-        difficulty = (DifficultyLevel)v;
-        ApplyDifficulty();
-    }
-
-    // Called by gameManager to reset/restart this mini-game without changing scene.
-    public void ResetLevel()
-    {
-        // stop spawn routine
-        if (spawnRoutine != null) { StopCoroutine(spawnRoutine); spawnRoutine = null; }
-
-        // destroy any spawned customer GameObjects
-        if (customers != null)
-        {
-            for (int i = 0; i < customers.Count; i++)
-            {
-                var c = customers[i];
-                if (c != null && c.gameObject != null)
-                    Destroy(c.gameObject);
-                customers[i] = null;
-            }
-        }
-
-        // clear waiting assignments and occupancy
-        waitingAssignments.Clear();
-        if (waitingPointOccupied != null)
-            for (int i = 0; i < waitingPointOccupied.Length; i++) waitingPointOccupied[i] = false;
-
-        // re-apply capacity/difficulty and reset counters
-        EnsureListCapacity();
-        ApplyDifficulty();
-        remainingToServe = Mathf.Max(0, customerListLength);
-        levelCompleted = false;
-        levelActive = false;
-
-        // if this manager is enabled, start the level loop again
-        if (isActiveAndEnabled)
-        {
-            StartLevelIfReady();
-        }
-    }
-
-    // Compatibility hook called by gameManager when it starts the level
-    public void OnLevelStart()
-    {
-        ResetLevel();
-    }
-
     void OnLevelTimeExpired()
     {
         // stop spawning new customers
@@ -273,7 +196,7 @@ public class paymentMethodGameManagerScript : MonoBehaviour
             spawnRoutine = null;
         }
 
-        //Debug.Log($"Level time expired for difficulty {difficulty}. Remaining customers must still be served.");
+        Debug.Log($"Level time expired for difficulty {difficulty}. Remaining customers must still be served.");
 
         // Notify game manager to handle life loss / transition / restart sequence.
         var gm = FindObjectOfType<gameManagerScript>();
@@ -319,7 +242,7 @@ public class paymentMethodGameManagerScript : MonoBehaviour
 
     IEnumerator SpawnLoop()
     {
-        //Debug.Log("SpawnLoop entered");
+        Debug.Log("SpawnLoop entered");
         while (true)
         {
             yield return new WaitForSeconds(spawnInterval);
@@ -329,15 +252,15 @@ public class paymentMethodGameManagerScript : MonoBehaviour
 
     void TrySpawnCustomer()
     {
-        //Debug.Log($"TrySpawnCustomer: spawnPoint={(spawnPoint!=null)}, customer={(customer!=null)}, IsFull={IsFull()}, customerCount={customers?.Count}");
+        Debug.Log($"TrySpawnCustomer: spawnPoint={(spawnPoint!=null)}, customer={(customer!=null)}, IsFull={IsFull()}, customerCount={customers?.Count}");
         if (customer == null || spawnPoint == null) 
         {
-            //Debug.LogWarning("TrySpawnCustomer aborted: missing customer prefab or spawnPoint");
+            Debug.LogWarning("TrySpawnCustomer aborted: missing customer prefab or spawnPoint");
             return;
         }
         if (IsFull()) 
         {
-            //Debug.Log("TrySpawnCustomer aborted: customer list full");
+            Debug.Log("TrySpawnCustomer aborted: customer list full");
             return;
         }
 
@@ -351,7 +274,7 @@ public class paymentMethodGameManagerScript : MonoBehaviour
         var cust = go.GetComponent<customerScript>();
         if (cust == null)
         {
-            //Debug.LogWarning("Spawned prefab does not contain customerScript; destroying instance.", go);
+            Debug.LogWarning("Spawned prefab does not contain customerScript; destroying instance.", go);
             Destroy(go);
             return;
         }
