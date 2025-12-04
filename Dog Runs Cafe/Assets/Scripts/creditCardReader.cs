@@ -52,6 +52,8 @@ public class creditCardReader : MonoBehaviour
     int currentLightIndex = 0;
     Coroutine flashCoroutine;
 
+    public AudioSource sfxSource;
+
     void Reset()
     {
         // ensure the reader's main collider exists
@@ -86,6 +88,8 @@ public class creditCardReader : MonoBehaviour
 
         // initialize light to default material (index 0)
         SetLightMaterial(0);
+
+        sfxSource = GetComponent<AudioSource>();
     }
 
     void OnValidate()
@@ -258,6 +262,7 @@ public class creditCardReader : MonoBehaviour
     {
         if (lightMaterials == null || lightMaterials.Length < 2) return;
         StartFlash(1);
+        sfxSource.Play();
     }
 
     // Flash the error material (index 2) then revert to default (index 0)

@@ -1,3 +1,4 @@
+using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -33,6 +34,16 @@ public class playerTrayGameScript : MonoBehaviour
     float startupIgnoreTime = 0.5f;
     float startupTimer = 0f;
 
+    AudioSource movementSource;
+
+    [Tooltip("Raw mouse delta magnitude threshold (per FixedUpdate) to trigger the sound.")]
+    public float mouseAudioThreshold = 8f;
+
+    [Tooltip("Minimum seconds between audio triggers.")]
+    public float audioCooldown = 0.2f;
+
+    float lastAudioTime = -10f;
+
     void Awake()
     {
         if (rb == null)
@@ -54,6 +65,8 @@ public class playerTrayGameScript : MonoBehaviour
         // Lock mouse to center and hide it
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
+
+        movementSource = GetComponent<AudioSource>();
     }
 
     void Update()
@@ -96,6 +109,16 @@ public class playerTrayGameScript : MonoBehaviour
         }
 
         Vector2 delta = mouse.delta.ReadValue();
+
+        float deltaMag = delta.magnitude;
+        if (movementSource != null && Time.time - lastAudioTime >= audioCooldown)
+        {
+            if (deltaMag >= mouseAudioThreshold)
+            {
+                movementSource.Play();
+                lastAudioTime = Time.time;
+            }
+        }
 
         // Convert to controlled movement
         float rollInput = delta.x * rollSensitivity * Time.fixedDeltaTime;

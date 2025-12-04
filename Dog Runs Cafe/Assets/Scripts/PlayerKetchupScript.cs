@@ -365,6 +365,7 @@ public class playerKetchupScript : MonoBehaviour
         {
             message = "Fail";
             color = Color.red;
+            gameManagerScript.Instance.LoseLife(1);
         }
         else if (scoreAccuracy <= 0.80f)
         {
