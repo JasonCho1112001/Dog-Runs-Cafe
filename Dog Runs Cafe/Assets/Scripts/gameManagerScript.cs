@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Reflection;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
@@ -274,24 +275,39 @@ public class gameManagerScript : MonoBehaviour
         var target = miniGames[miniIdx];
         if (target != null)
         {
+            // 1) Apply difficulty to any component in the target (including inactive children) BEFORE activation.
+            var childComps = target.GetComponentsInChildren<MonoBehaviour>(true);
+            foreach (var mb in childComps)
+            {
+                if (mb == null) continue;
+                var setDiff = mb.GetType().GetMethod("SetDifficultyLevel", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                if (setDiff != null)
+                {
+                    try { setDiff.Invoke(mb, new object[] { difficulty }); }
+                    catch { /* ignore invocation errors */ }
+                }
+            }
+
+            // 2) Now activate the mini-game
             target.SetActive(true);
 
-            // 1) Prefer direct method call on a known manager component (more reliable than SendMessage).
-            //    If the mini-game has a component named KetchupLevelManager (or similar) that exposes SetDifficultyLevel,
-            //    call it directly.
-            var ketchupMgr = target.GetComponentInChildren<KetchupLevelManager>();
-            if (ketchupMgr != null)
+            // 3) Call ResetLevel and OnLevelStart on any component that implements them.
+            var activeComps = target.GetComponentsInChildren<MonoBehaviour>(true);
+            foreach (var mb in activeComps)
             {
-                ketchupMgr.SetDifficultyLevel(difficulty);
-                ketchupMgr.ResetLevel();
-                ketchupMgr.OnLevelStart();
-            }
-            else
-            {
-                // 2) Fallback to SendMessage so other mini-games still receive the difficulty.
-                target.SendMessage("SetDifficultyLevel", difficulty, SendMessageOptions.DontRequireReceiver);
-                target.SendMessage("ResetLevel", SendMessageOptions.DontRequireReceiver);
-                target.SendMessage("OnLevelStart", SendMessageOptions.DontRequireReceiver);
+                if (mb == null) continue;
+                var reset = mb.GetType().GetMethod("ResetLevel", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                if (reset != null)
+                {
+                    try { reset.Invoke(mb, null); }
+                    catch { }
+                }
+                var onStart = mb.GetType().GetMethod("OnLevelStart", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                if (onStart != null)
+                {
+                    try { onStart.Invoke(mb, null); }
+                    catch { }
+                }
             }
 
             Debug.Log($"Starting level {currentLevelIndex} -> miniGame {miniIdx} difficulty {difficulty}");
@@ -446,6 +462,13 @@ public class gameManagerScript : MonoBehaviour
         if (Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame)
         {
             SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+        }
+
+        // DEBUG: press L to instantly win the current level and advance
+        if (Keyboard.current != null && Keyboard.current.lKey.wasPressedThisFrame)
+        {
+            Debug.Log("Debug: forcing level win/advance");
+            OnLevelPassed("Cheat: Level Skipped!", 0.5f);
         }
 
         // Press 1,2,3... to load mini-games (I know this code is spaghetti)
