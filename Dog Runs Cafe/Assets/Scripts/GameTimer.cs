@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using TMPro;
 using Unity.VisualScripting;
+using System.Collections;
 
 public enum DifficultyLevel
  {
@@ -43,6 +44,11 @@ public enum DifficultyLevel
      private float printInterval = 1f;
      private float nextPrintTime = 1f;
 
+    [Header("UI Popups")]
+
+    public TextMeshProUGUI resultText;
+    public float popupDuration = 3f;
+
      [Header("Difficulty Settings")]
      public DifficultyLevel difficulty = DifficultyLevel.Easy;
 
@@ -65,6 +71,9 @@ public enum DifficultyLevel
     void Awake()
     {
         CacheMugStartTransforms();
+
+        if (resultText != null) resultText.gameObject.SetActive(false);
+
     }
 
     void CacheMugStartTransforms()
@@ -84,18 +93,19 @@ public enum DifficultyLevel
 
      void Start()
      {
-         // ensure timer/reset state is clean when started standalone
-         ApplyDifficultyToScene();
-         ResetLevelState();
+        // ensure timer/reset state is clean when started standalone
+        ApplyDifficultyToScene();
+        ResetLevelState();
         UpdateTimerUI();
+
      }
 
      void OnEnable()
      {
-         // When the mini-game is activated by the global manager, ensure it resets
-         ApplyDifficultyToScene();
-         // ResetLevel is intended to be called by gameManager when it wants a fresh start;
-         // OnEnable should avoid overriding an internal progression, so call ResetLevelState only.
+        // When the mini-game is activated by the global manager, ensure it resets
+        ApplyDifficultyToScene();
+        // ResetLevel is intended to be called by gameManager when it wants a fresh start;
+        // OnEnable should avoid overriding an internal progression, so call ResetLevelState only.
          ResetLevelState();
          EnsureTrayFlat();
         UpdateTimerUI();
@@ -194,6 +204,8 @@ public enum DifficultyLevel
     {
         if (gameOver) return;
         gameOver = true;
+
+        ShowResultPopup("Fur-nomenal!", Color.yellow); 
         Debug.Log("YOU WON THIS LEVEL! Advancing local difficulty and transitioning to next mini-game.");
 
         // Advance local difficulty and restart locally (do not immediately accept external difficulty overrides)
@@ -203,7 +215,7 @@ public enum DifficultyLevel
         var gm = gameManagerScript.Instance ?? FindObjectOfType<gameManagerScript>();
         if (gm != null)
         {
-            gm.OnLevelPassed("Good job!", 2f);
+            gm.OnLevelPassed("", 0f);   // no message
         }
     }
 
@@ -212,6 +224,8 @@ public enum DifficultyLevel
     {
         if (gameOver) return;
 
+        ShowResultPopup("You Spilled!", Color.red);
+
         gameOver = true;
         Debug.Log("You spilled! Retrying same difficulty...");
 
@@ -219,7 +233,7 @@ public enum DifficultyLevel
         var gm = gameManagerScript.Instance ?? FindObjectOfType<gameManagerScript>();
         if (gm != null)
         {
-            gm.OnPlayerRanOutOfTimeRestartLevel("You lost a life! Retrying current level...", 2f);
+            gm.OnPlayerRanOutOfTimeRestartLevel("", 0f);   // no message
         }
         else
         {
@@ -251,6 +265,8 @@ public enum DifficultyLevel
         allowExternalDifficulty = false;
 
         // apply scene changes and reset runtime state (no scene reload)
+        EnsureTrayFlat();
+        ResetMugsIfNeeded();
         ApplyDifficultyToScene();
         ResetLevelState(); // keep allowExternalDifficulty as set above
         ResetMugsIfNeeded();
@@ -304,17 +320,18 @@ public enum DifficultyLevel
          allowExternalDifficulty = true;
          if (debugLogDifficulty) Debug.Log("GameTimer: ResetLevel called -> allowExternalDifficulty = true");
          
-          ResetLevelState();
-          // ensure mugs match the configured difficulty and are reactivated
-          ApplyDifficultyToScene();
-          ActivateMugsForDifficulty(GetMugCount());
-          ResetMugsIfNeeded();
-  
-         // make sure physical tray and player are leveled on reset
-          EnsureTrayFlat();
-  
-         // update UI and internal state
-          UpdateTimerUI();
+        ResetLevelState();
+        // ensure mugs match the configured difficulty and are reactivated
+        ApplyDifficultyToScene();
+        ActivateMugsForDifficulty(GetMugCount());
+        ResetMugsIfNeeded();
+
+        // make sure physical tray and player are leveled on reset
+        EnsureTrayFlat();
+
+
+        // update UI and internal state
+        UpdateTimerUI();
      }
      
      // Optional hook when the level is actively started by the game manager
@@ -384,4 +401,38 @@ public enum DifficultyLevel
             }
         }
      }
+
+    // Popup for UI Text
+     public void ShowResultPopup(string message, Color color)
+    {
+
+        
+        if (resultText == null) return;
+
+        resultText.text = message;
+        resultText.color = color;
+        resultText.gameObject.SetActive(true);
+
+        StopAllCoroutines();
+        Debug.Log("Displaying Message!");
+        StartCoroutine(PopupAnimation(resultText.transform));
+    }
+
+    // Popup animation for UI Text
+   IEnumerator PopupAnimation(Transform targetTransform)
+    {
+        targetTransform.localScale = Vector3.zero;
+        float duration = 0.5f;
+        float elapsed = 0f;
+
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            float t = elapsed / duration;
+            targetTransform.localScale = Vector3.Lerp(Vector3.zero, Vector3.one/2.5f, t);
+            yield return null;
+        }
+        targetTransform.localScale = Vector3.one/2.5f;
+    }
+
  }
