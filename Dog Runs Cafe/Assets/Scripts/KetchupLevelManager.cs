@@ -4,8 +4,6 @@ using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.ProBuilder.MeshOperations;
-using UnityEngine.UI;
-using TMPro;
 
 public class KetchupLevelManager : MonoBehaviour
 {
@@ -29,15 +27,6 @@ public class KetchupLevelManager : MonoBehaviour
     private ketchupScoreManager scoreManager;
     InputAction finishAction;
 
-    // -----------------------
-    // TIMER FIELDS (NEW)
-    // -----------------------
-    private float timer = 5f;          // countdown duration
-    private bool timerActive = false;  
-    private TextMeshProUGUI timerText;
-    private GameObject timerCanvas;
-    // -----------------------
-
     private void Awake()
     {
         if (Instance == null)
@@ -53,106 +42,45 @@ public class KetchupLevelManager : MonoBehaviour
 
     void Start()
     {
+        // Ensure standalone start loads currentLevel (defaults to 1)
         LoadLevel(currentLevel);
-        SetupTimerUI();
-        ResetTimer();
     }
 
-    // -----------------------
-    // SET UP TIMER UI (NEW)
-    // -----------------------
-    void SetupTimerUI()
-    {
-        timerCanvas = new GameObject("KetchupTimerCanvas");
-        timerCanvas.layer = LayerMask.NameToLayer("UI");
-
-        Canvas c = timerCanvas.AddComponent<Canvas>();
-        c.renderMode = RenderMode.ScreenSpaceOverlay;
-        timerCanvas.AddComponent<CanvasScaler>();
-        timerCanvas.AddComponent<GraphicRaycaster>();
-
-        GameObject textGO = new GameObject("TimerText");
-        textGO.transform.SetParent(timerCanvas.transform);
-        timerText = textGO.AddComponent<TextMeshProUGUI>();
-        timerText.fontSize = 36;
-        timerText.color = Color.red;
-        timerText.alignment = TextAlignmentOptions.Center;
-
-        RectTransform rt = timerText.rectTransform;
-        rt.anchorMin = new Vector2(0.5f, 0.9f);
-        rt.anchorMax = new Vector2(0.5f, 0.9f);
-        rt.anchoredPosition = Vector2.zero;
-    }
-    // -----------------------
-
-    // Called by gameManager on difficulty changes
+    // Called by gameManager via SendMessage("SetDifficultyLevel", difficulty)
+    // Accepts difficulty 1,2,3 and loads the corresponding local level.
     public void SetDifficultyLevel(int difficulty)
     {
         difficulty = Mathf.Clamp(difficulty, 1, 3);
         LoadLevel(difficulty);
-        ResetTimer();
     }
 
+    // Optional ResetLevel hook used by gameManager; reload same difficulty
     public void ResetLevel()
     {
         LoadLevel(currentLevel);
-        ResetTimer();
     }
 
+    // Optional hook invoked by gameManager when the level is actively started.
+    // Keeps compatibility with gameManagerScript which calls OnLevelStart().
     public void OnLevelStart()
     {
+        // Ensure the level is initialized / reset when the game manager starts it.
         ResetLevel();
     }
 
     void Update()
     {
-        // -----------------------
-        // TIMER LOGIC (NEW)
-        // -----------------------
-        if (timerActive)
-        {
-            timer -= Time.deltaTime;
-
-            if (timerText != null)
-                timerText.text = $"Time Left: {timer:F1}";
-
-            if (timer <= 0)
-            {
-                timerActive = false;
-
-                var gm = gameManagerScript.Instance;
-                if (gm != null)
-                {
-                    gm.OnPlayerRanOutOfTimeRestartLevel("You lost a life!", 2.0f);
-                }
-
-                return; // skip rest of update
-            }
-        }
-        // -----------------------
-
         if (finishAction.WasPerformedThisFrame() && !isTransitioning)
         {
             float scoreAccuracy = ketchupScoreManager.Instance.GetScoreAccuracy();
             int nextLevel = currentLevel + 1;
 
-            if (!AreAllOmelettesHit() && scoreAccuracy < 50f)
-                nextLevel = currentLevel;
-
+            if (!AreAllOmelettesHit() && scoreAccuracy < 50f) nextLevel = currentLevel;
             if (nextLevel <= 3)
             {
                 StartCoroutine(TransitionToLevel(nextLevel));
             }
         }
-    }
-
-    // Reset timer when level loads
-    void ResetTimer()
-    {
-        timer = 5f;
-        timerActive = true;
-        if (timerText != null)
-            timerText.text = $"Time Left: {timer:F1}";
     }
 
     IEnumerator TransitionToLevel(int levelIndex)
@@ -163,16 +91,39 @@ public class KetchupLevelManager : MonoBehaviour
 
         CleanupSpawnedObjects();
         uiResetHandler.ResetScoreText();
-
-        var gm = gameManagerScript.Instance;
+        //LoadLevel(levelIndex);
+        var gm = FindObjectOfType<gameManagerScript>();
         if (gm != null)
         {
             gm.OnLevelPassed("Task Completed!", 2.0f);
         }
-
         isTransitioning = false;
     }
 
+    IEnumerator DelayedOnLevelPassed(gameManagerScript gm)
+    {
+        // wait 2 seconds before telling the global manager (keeps timing consistent)
+        yield return new WaitForSeconds(2f);
+
+        // prefer the singleton instance (more reliable than FindObjectOfType)
+        if (gameManagerScript.Instance != null)
+        {
+            gameManagerScript.Instance.OnLevelPassed("Task Completed!", 2f);
+        }
+        else if (gm != null)
+        {
+            gm.OnLevelPassed("Task Completed!", 2f);
+        }
+        else
+        {
+            // fallback - try FindObjectOfType once more and call it
+            var found = FindObjectOfType<gameManagerScript>();
+            if (found != null) found.OnLevelPassed("Task Completed!", 2f);
+        }
+    }
+
+    // LoadLevel now takes the difficulty (1..3) coming from gameManager's difficulty selection.
+    // Internally it's the same mapping used previously: difficulty 1 -> local level1, etc.
     void LoadLevel(int difficulty)
     {
         difficulty = Mathf.Clamp(difficulty, 1, 3);
@@ -181,6 +132,7 @@ public class KetchupLevelManager : MonoBehaviour
         SetLevelActive(level2Plates, false);
         SetLevelActive(level3Plates, false);
 
+        // Activate the matching difficulty level
         switch (difficulty)
         {
             case 1: SetLevelActive(level1Plates, true); break;
@@ -192,13 +144,13 @@ public class KetchupLevelManager : MonoBehaviour
         scoreManager.allHits.Clear();
 
         activeOmelettes.Clear();
-        OmeletteController[] allOmelettes = 
-            FindObjectsByType<OmeletteController>(FindObjectsSortMode.None);
-
+        OmeletteController[] allOmelettes = FindObjectsByType<OmeletteController>(FindObjectsSortMode.None);
         foreach (OmeletteController omelette in allOmelettes)
         {
             if (omelette != null && omelette.gameObject.activeInHierarchy)
+            {
                 activeOmelettes.Add(omelette);
+            }
         }
     }
 
@@ -206,12 +158,14 @@ public class KetchupLevelManager : MonoBehaviour
     {
         if (level != null) level.SetActive(activeStatus);
     }
-
     void CleanupSpawnedObjects()
     {
         foreach (GameObject ketchupSplash in spawnedObjects)
         {
-            if (ketchupSplash != null) Destroy(ketchupSplash);
+            if (ketchupSplash != null)
+            {
+                Destroy(ketchupSplash);
+            }
         }
         spawnedObjects.Clear();
     }
@@ -221,14 +175,14 @@ public class KetchupLevelManager : MonoBehaviour
         spawnedObjects.Add(ketchupSplat);
     }
 
+    // Check if every omelette has been hit
     public bool AreAllOmelettesHit()
     {
         if (activeOmelettes.Count == 0) return false;
 
         foreach (OmeletteController omelette in activeOmelettes)
         {
-            if (omelette != null && !omelette.hasKetchup)
-                return false;
+            if (omelette != null && !omelette.hasKetchup) return false;
         }
         return true;
     }
