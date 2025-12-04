@@ -205,7 +205,6 @@ public enum DifficultyLevel
         if (gameOver) return;
         gameOver = true;
 
-        ShowResultPopup("Fur-nomenal!", Color.yellow); 
         Debug.Log("YOU WON THIS LEVEL! Advancing local difficulty and transitioning to next mini-game.");
 
         // Advance local difficulty and restart locally (do not immediately accept external difficulty overrides)
@@ -215,7 +214,7 @@ public enum DifficultyLevel
         var gm = gameManagerScript.Instance ?? FindObjectOfType<gameManagerScript>();
         if (gm != null)
         {
-            gm.OnLevelPassed("", 0f);   // no message
+            gm.OnLevelPassed("Task Completed!", 2.0f);
         }
     }
 
@@ -224,7 +223,6 @@ public enum DifficultyLevel
     {
         if (gameOver) return;
 
-        ShowResultPopup("You Spilled!", Color.red);
 
         gameOver = true;
         Debug.Log("You spilled! Retrying same difficulty...");
@@ -233,7 +231,7 @@ public enum DifficultyLevel
         var gm = gameManagerScript.Instance ?? FindObjectOfType<gameManagerScript>();
         if (gm != null)
         {
-            gm.OnPlayerRanOutOfTimeRestartLevel("", 0f);   // no message
+            gm.OnPlayerRanOutOfTimeRestartLevel("You spilled! Retrying same difficulty...", 2.0f); 
         }
         else
         {
