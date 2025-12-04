@@ -28,6 +28,17 @@ public class gameManagerScript : MonoBehaviour
 
     int MiniGameCount => Mathf.Max(1, miniGames != null ? miniGames.Length : 1);
 
+    // ============================
+    // Timer fields (ADDED)
+    // ============================
+    private float currentTimer = -1f;
+    private GameObject timerCanvas;
+    private TextMeshProUGUI timerText;
+    private const float KETCHUP_TIME = 7f;
+    private const float TRAY_TIME = 4f;
+    private const float PAYMENT_TIME = 15f;
+    // ============================
+
     void Awake()
     {
         // ensure single instance
@@ -47,6 +58,9 @@ public class gameManagerScript : MonoBehaviour
         // clamp totalLevels to sensible value based on miniGames count
         totalLevels = Mathf.Max(totalLevels, MiniGameCount * 3);
         UpdateLivesUI();
+
+        // create timer UI (ADDED)
+        CreateTimerUI();
     }
 
     void OnDestroy()
@@ -97,6 +111,7 @@ public class gameManagerScript : MonoBehaviour
     }
     
     // Called by mini-game managers when time runs out
+    // NOTE: default message is descriptive but the routine will force the fail text to avoid accidental success text
     public void OnPlayerRanOutOfTimeRestartLevel(string message = "You lost a life! Retrying current level...", float displaySeconds = 2f)
     {
         // prevent multiple concurrent sequences
@@ -133,7 +148,10 @@ public class gameManagerScript : MonoBehaviour
         GameObject textGO = new GameObject("Message");
         textGO.transform.SetParent(canvasGO.transform, false);
         var txt = textGO.AddComponent<Text>();
-        txt.text = message;
+
+        // FORCE a fail message here so failures can't accidentally show success text
+        string failMessage = "Task Failed! You lost a life.";
+        txt.text = failMessage;
         txt.alignment = TextAnchor.MiddleCenter;
         txt.color = Color.white;
 
@@ -171,6 +189,10 @@ public class gameManagerScript : MonoBehaviour
     public void OnLevelPassed(string message = "Task Completed!", float displaySeconds = 2f)
     {
         if (transitionInProgress) return;
+
+        // stop/hide timer on success (ADDED)
+        StopAndHideTimer();
+
         StartCoroutine(LevelPassedRoutine(message, displaySeconds));
     }
 
@@ -296,6 +318,13 @@ public class gameManagerScript : MonoBehaviour
 
             Debug.Log($"Starting level {currentLevelIndex} -> miniGame {miniIdx} difficulty {difficulty}");
         }
+
+        // ============================
+        // Start timer for this mini-game (ADDED)
+        // Mapping based on your order: ketchup, tray, payment
+        // miniIdx 0 -> ketchup (7s), 1 -> tray (4s), 2 -> payment (15s)
+        // ============================
+        SetupTimerForMiniGame(miniIdx);
     }
     
     // Restart the current active mini-game (reinitialize its state)
@@ -318,6 +347,11 @@ public class gameManagerScript : MonoBehaviour
         target.SetActive(true);
         target.SendMessage("ResetLevel", SendMessageOptions.DontRequireReceiver);
         target.SendMessage("OnLevelStart", SendMessageOptions.DontRequireReceiver);
+
+        // reset and restart timer for this mini-game (ADDED)
+        int idx = Mathf.Clamp(currentLevelIndex, 0, totalLevels - 1);
+        int miniIdx = GetMiniGameIndexForLevel(idx);
+        SetupTimerForMiniGame(miniIdx);
 
         // reload the current scene to ensure a full clean restart
         UnityEngine.SceneManagement.SceneManager.LoadScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex);
@@ -361,6 +395,10 @@ public class gameManagerScript : MonoBehaviour
     public void OnMiniGamePassed(string message = "Good job!", float displaySeconds = 2f)
     {
         if (transitionInProgress) return;
+
+        // stop/hide timer on mini-game success (ADDED)
+        StopAndHideTimer();
+
         StartCoroutine(MiniGamePassedRoutine(message, displaySeconds));
     }
 
@@ -436,6 +474,27 @@ public class gameManagerScript : MonoBehaviour
     
     void Update()
     {
+        // ============================
+        // Timer tick (ADDED)
+        // ============================
+        if (currentTimer > 0f)
+        {
+            currentTimer -= Time.deltaTime;
+            if (timerText != null)
+            {
+                timerText.text = currentTimer.ToString("F1");
+            }
+
+            if (currentTimer <= 0f)
+            {
+                // timer expired -> trigger life lost and restart via existing manager routine
+                currentTimer = -1f;
+                if (timerText != null) timerText.text = "";
+                OnPlayerRanOutOfTimeRestartLevel("You lost a life! Retrying current level...", 2f);
+            }
+        }
+        // ============================
+
         //Press P to toggle cursor visibility and lock state
         if (Keyboard.current.pKey.wasPressedThisFrame)
         {
@@ -481,4 +540,56 @@ public class gameManagerScript : MonoBehaviour
     {
         SceneManager.LoadScene(sceneName);
     }
+
+    // ============================
+    // Timer helper methods (ADDED)
+    // ============================
+    void CreateTimerUI()
+    {
+        // create a canvas parented to this manager for cleanliness
+        timerCanvas = new GameObject("MiniGameTimerCanvas");
+        timerCanvas.transform.SetParent(transform, false);
+        timerCanvas.layer = LayerMask.NameToLayer("UI");
+
+        var canvas = timerCanvas.AddComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.sortingOrder = 9999;
+        timerCanvas.AddComponent<CanvasScaler>();
+        timerCanvas.AddComponent<GraphicRaycaster>();
+
+        GameObject textGO = new GameObject("MiniGameTimerText");
+        textGO.transform.SetParent(timerCanvas.transform, false);
+        timerText = textGO.AddComponent<TextMeshProUGUI>();
+        timerText.fontSize = 40;
+        timerText.color = Color.yellow;
+        timerText.alignment = TextAlignmentOptions.Center;
+
+        RectTransform rt = timerText.rectTransform;
+        rt.anchorMin = new Vector2(0.5f, 0.9f);
+        rt.anchorMax = new Vector2(0.5f, 0.9f);
+        rt.anchoredPosition = Vector2.zero;
+        timerText.text = "";
+        timerCanvas.SetActive(false);
+    }
+
+    void SetupTimerForMiniGame(int miniIdx)
+    {
+        // miniIdx mapping (you specified): 0 = ketchup, 1 = tray, 2 = payment
+        float chosen = 10f; // fallback
+        if (miniIdx == 0) chosen = KETCHUP_TIME;
+        else if (miniIdx == 1) chosen = TRAY_TIME;
+        else if (miniIdx == 2) chosen = PAYMENT_TIME;
+
+        currentTimer = chosen;
+        if (timerCanvas != null) timerCanvas.SetActive(true);
+        if (timerText != null) timerText.text = currentTimer.ToString("F1");
+    }
+
+    void StopAndHideTimer()
+    {
+        currentTimer = -1f;
+        if (timerCanvas != null) timerCanvas.SetActive(false);
+        if (timerText != null) timerText.text = "";
+    }
+    // ============================
 }
